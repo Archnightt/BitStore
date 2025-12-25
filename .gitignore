@@ -1,0 +1,22 @@
+# Java & Maven
+target/
+*.class
+.mvn/
+mvnw
+mvnw.cmd
+*.jar
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.settings/
+bin/
+
+# OS & Logs
+.DS_Store
+*.log
+trie.db
+
+# Test Files
+*.txt
