@@ -1,93 +1,83 @@
-# BitStore
+# BitStore 📦
 
-![BitStore UI](assets/frontend.png)
+**A Distributed, Content-Addressable Storage (CAS) System.**
 
-> **Decentralized. Encrypted. Permanent.**
+BitStore is a scalable object storage engine designed on microservices principles. Unlike traditional storage that organizes files by name/location, BitStore breaks files into 1MB chunks, fingerprints them using SHA-256, and stores them in a deduplicated "Vault."
 
-BitStore is a distributed, content-addressable object storage system inspired by principles from IPFS and BitTorrent. It splits files into cryptographically hashed blocks, ensuring data deduplication and integrity verification at the byte level.
+This project demonstrates the core concepts behind systems like Git, IPFS, and Dropbox's sync engine.
 
-Designed as a **Microservices Monorepo**, it decouples the storage plane from the metadata plane, allowing for independent scaling of storage nodes versus file orchestration.
+![BitStore Dashboard](assets/frontend.png)
 
----
+## 🏗️ System Architecture
 
-## 🧠 How It Works (The Core Logic)
+The system follows a decoupled microservices pattern to separate **Control Plane** (Metadata) from **Data Plane** (Block Storage).
 
-BitStore is not just a file uploader; it is a **Content Addressable Storage (CAS)** engine. Here is the lifecycle of a file:
+```mermaid
+graph TD
+    Client[React Frontend] -->|Upload File| Nginx[Nginx Gateway]
+    Nginx -->|/api/v1/files| Metadata[Metadata Service]
+    Metadata -->|1. Chunk & Hash| Metadata
+    Metadata -->|2. Check Existence| DB[(PostgreSQL)]
+    Metadata -->|3. Store New Chunks| Block[Block Service]
+    Block -->|Write Binary| Disk[Storage Volume]
+```
 
-### 1. ✂️ Chunking (The Split)
-When a file is uploaded, the **Metadata Service** does not save it as one blob. Instead, it streams the file and slices it into fixed-size **1MB Blocks**.
-* *Why?* This allows us to process massive files without eating up RAM, and enables parallel processing.
+## 🚀 Key Features
 
-### 2. #️⃣ Hashing & Integrity
-Each 1MB block is passed through a **SHA-256** cryptographic function.
-* The output hash (e.g., `a1b2c3...`) becomes the **Unique ID** of that block.
-* This ensures data integrity: if a single bit changes, the hash changes, and the system knows the data is corrupted.
+* **🧬 File DNA Inspector:** A real-time visualizer that deconstructs files into their constituent blocks, revealing the SHA-256 hash for every 1MB chunk.
+* **🔍 Native Deduplication:** By using Content-Addressable Storage (CAS), identical data blocks are stored only once. Uploading the same 1GB file 10 times consumes only 1GB of disk space.
+* **⚡ Parallel Architecture:**
+    * **Metadata Service:** Handles file logic, user ownership, and the "recipe" of block hashes.
+    * **Block Service:** A high-throughput, dumb storage unit that operates purely on hash keys (immutable storage).
+* **🐳 Dockerized Infrastructure:** Fully containerized environment using Docker Compose with an Nginx reverse proxy handling traffic routing.
 
-### 3. ♻️ Deduplication (The Magic)
-Before storing a block, the system checks: *"Do I already have a block with hash `a1b2c3...`?"*
-* **Yes:** We discard the incoming data and simply point the new file to the existing block.
-* **No:** We write the new block to the **Block Service**.
-* *Result:* If 1,000 users upload the exact same 50MB video, BitStore only stores it **once**, saving 99.9% of storage space.
+## 🛠️ Tech Stack
 
-### 4. 🧩 Re-patching (The Assembly)
-To download a file, the system reverses the process:
-1.  Look up the "Recipe" (Metadata): *"File X is made of blocks [A, B, C]"*.
-2.  Fetch blocks A, B, and C from the storage vault.
-3.  Stitch them back together in order and stream the bytes to the user.
+| Component | Technology | Role |
+| :--- | :--- | :--- |
+| **Frontend** | React, Vite, Tailwind | Drag-and-drop UI & Block Visualization |
+| **Gateway** | Nginx | Reverse Proxy & CORS handling |
+| **Metadata API** | Java 17, Spring Boot | Business logic & Metadata orchestration |
+| **Block API** | Java 17, Spring Boot | Binary storage & retrieval |
+| **Database** | PostgreSQL 15 | Relational data & Indexing |
+| **DevOps** | Docker Compose | Container orchestration |
 
----
+## 🧠 Engineering Decisions & Trade-offs
 
-## 🏗 Architecture
+* **Why Split Metadata & Block Services?**
+    Separating the "Brain" (Metadata) from the "Vault" (Blocks) allows them to scale independently. The Block Service is I/O bound and can be scaled horizontally across multiple servers (or replaced with S3), while the Metadata Service is CPU/Memory bound and focuses on database transactions.
 
-BitStore follows a decoupled microservices architecture:
+* **Why Content-Addressable Storage (CAS)?**
+    CAS ensures data integrity. If a single bit in a file changes, the hash changes, and it becomes a new object. This automatically provides versioning capabilities and deduplication, drastically reducing storage costs for redundant data.
 
-### **Metadata Service (The Brain)**
-* **Stack:** Java 17, Spring Boot, Hibernate.
-* **Role:** Maintains the `File Name -> [List of Block Hashes]` mapping. It never touches the raw data on disk, keeping it lightweight and fast.
+## 🏁 Getting Started
 
-### **Block Service (The Vault)**
-* **Stack:** Java 17, Spring Boot, Local IO.
-* **Role:** A "Dumb" storage node. It doesn't know what "File.jpg" is; it only knows it holds a block named `8f4b...`.
-
-### **Frontend (The Interface)**
-* **Stack:** React, Vite (Rolldown), Tailwind CSS, Axios.
-* **Role:** A "Soft Modern" UI that visualizes the upload queue and handles real-time progress streaming.
-
----
-
-## 🚀 Getting Started
+Run the entire distributed system locally with one command.
 
 ### Prerequisites
-* Java 17+
-* Node.js 18+
-* Maven Wrapper (Included)
+* Docker & Docker Compose installed.
 
 ### Installation
 
-1.  **Clone the Repository**
+1.  **Clone the repository**
     ```bash
-    git clone [https://github.com/YOUR_USERNAME/BitStore.git](https://github.com/YOUR_USERNAME/BitStore.git)
+    git clone [https://github.com/Archnightt/BitStore.git](https://github.com/Archnightt/BitStore.git)
     cd BitStore
     ```
 
-2.  **Start the Microservices**
-    * **Terminal 1 (Metadata):** `./mvnw spring-boot:run -p metadataservice`
-    * **Terminal 2 (Block Storage):** `./mvnw spring-boot:run -p blockservice`
+2.  **Launch the System**
+    ```bash
+    docker-compose up --build
+    ```
 
-3.  **Start the Frontend**
-    * **Terminal 3 (UI):**
-        ```bash
-        cd frontend
-        npm install
-        npm run dev
-        ```
+3.  **Explore**
+    Open **http://localhost:5173** to access the dashboard.
 
-4.  **Access the Cloud**
-    Open `http://localhost:5173` in your browser.
+## 🧪 Testing the "File DNA"
+1.  **Upload a File:** Drag and drop a large file (e.g., `Photo.jpg`).
+2.  **Inspect it:** Click the file card to open the **Inspector**. Observe the unique hashes.
+3.  **Upload it Again:** Drag the *same* file in again.
+4.  **Compare:** Inspect the second copy. You will see it shares the **exact same block hashes**—deduplication in action.
 
 ---
-
-## 📄 License
-
-**Open Source.**
-This project is free to use, modify, and distribute. Built by **Harsh Kolarkar**.
+*Built by [Archnightt](https://github.com/Archnightt) as a high-performance distributed systems prototype.*
