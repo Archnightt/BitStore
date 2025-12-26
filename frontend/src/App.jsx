@@ -160,12 +160,12 @@ function App() {
 								onClick={uploadFiles}
 								disabled={uploading}
 								className={`mt-8 w-full py-5 rounded-2xl font-bold tracking-wider uppercase shadow-xl transition-all duration-300 transform
-                ${
-                  uploading
-                    ? "bg-beige text-softblack/40 cursor-wait shadow-none scale-[0.98]"
-                    : "bg-softblack text-beige shadow-softblack/30 hover:bg-softblack/90 hover:shadow-softblack/50 hover:-translate-y-1 active:scale-[0.97] active:shadow-sm"
-                }`}>
-                            {uploading ? "Uploading..." : "Start Upload"}
+                  ${
+										uploading
+											? "bg-[#EFECE3] text-[#1A1A1A]/40 cursor-wait shadow-none scale-[0.98]"
+											: "bg-[#1A1A1A] text-[#EFECE3] shadow-lg hover:bg-[#1A1A1A]/90 hover:-translate-y-1 active:scale-[0.97]"
+									}`}>
+								{uploading ? "Uploading..." : "Start Upload"}
 							</button>
 						</div>
 					)}
