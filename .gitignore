@@ -20,3 +20,5 @@ trie.db
 
 # Test Files
 *.txt
+blockservice/data/
+metadataservice/data/

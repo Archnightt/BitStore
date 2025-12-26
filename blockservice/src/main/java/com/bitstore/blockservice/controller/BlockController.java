@@ -1,44 +1,55 @@
 package com.bitstore.blockservice.controller;
 
-import com.bitstore.blockservice.service.BlobStorageService;
-import com.bitstore.blockservice.service.HashService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
-@RestController
-@RequestMapping("/api/v1/blocks")
+@RestController @RequestMapping("/api/v1/blocks")
 public class BlockController {
 
-    private final HashService hashService;
-    private final BlobStorageService storageService;
+    private final Path storageDir = Paths.get("data");
 
-    @Autowired
-    public BlockController(HashService hashService, BlobStorageService storageService) {
-        this.hashService = hashService;
-        this.storageService = storageService;
+    public BlockController() throws IOException {
+        Files.createDirectories(storageDir);
     }
 
     @PostMapping
-    public String uploadBlock(@RequestParam("file") MultipartFile file) {
-        try {
-            byte[] bytes = file.getBytes();
-            String hash = hashService.calculateSHA256(bytes);
+    public String uploadBlock( @RequestBody byte[] data) throws NoSuchAlgorithmException, IOException {
+        // 1. Calculate Hash (Content Addressable)
+        String hash = calculateHash(data);
 
-            if (storageService.exists(hash)) {
-                return "Block already exists: " + hash;
-            } else {
-                storageService.saveBlock(hash, bytes);
-                return "Uploaded new block: " + hash;
-            }
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read uploaded file", e);
+        // 2. Save Block to Disk
+        Path filePath = storageDir.resolve(hash);
+        if (!Files.exists(filePath)) {
+            Files.write(filePath, data);
         }
+
+        // 3. Return Hash
+        return hash;
     }
 
     @GetMapping("/{hash}")
-    public byte[] getBlock(@PathVariable String hash) {
-        return storageService.getBlock(hash);
+    public byte[] getBlock( @PathVariable String hash) throws IOException {
+        Path filePath = storageDir.resolve(hash);
+        if (!Files.exists(filePath)) {
+            throw new IOException("Block not found: " + hash);
+        }
+        return Files.readAllBytes(filePath);
+    }
+
+    private String calculateHash(byte[] bytes) throws NoSuchAlgorithmException {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(bytes);
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hash) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) hexString.append('0');
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
 }

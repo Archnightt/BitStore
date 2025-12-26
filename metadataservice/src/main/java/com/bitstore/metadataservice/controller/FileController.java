@@ -1,40 +1,49 @@
 package com.bitstore.metadataservice.controller;
 
-import com.bitstore.metadataservice.service.FileOrchestratorService;
+import com.bitstore.metadataservice.model.FileMetadata;
+import com.bitstore.metadataservice.service.FileService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import java.io.IOException;
 
-@RestController
-@RequestMapping("/api/v1/files")
+import java.util.List;
+
+@RestController @RequestMapping("/api/v1/files")
+// @CrossOrigin removed to avoid conflict with Global AppConfig
 public class FileController {
 
-    private final FileOrchestratorService orchestrator;
-
     @Autowired
-    public FileController(FileOrchestratorService orchestrator) {
-        this.orchestrator = orchestrator;
-    }
+    private FileService fileService;
 
     @PostMapping("/upload")
-    public String uploadFile(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<String> uploadFile( @RequestParam("file") MultipartFile file) {
         try {
-            orchestrator.uploadFile(file.getOriginalFilename(), file.getBytes());
-            return "File uploaded successfully";
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read uploaded file", e);
+            fileService.uploadFile(file);
+            return ResponseEntity.ok("File uploaded successfully");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
         }
     }
 
-    @GetMapping("/{fileName}")
-    public ResponseEntity<byte[]> downloadFile(@PathVariable String fileName) {
-        byte[] data = orchestrator.downloadFile(fileName);
-        
+    @GetMapping
+    public ResponseEntity<List<FileMetadata>> getAllFiles() {
+        return ResponseEntity.ok(fileService.getAllFiles());
+    }
+
+    @GetMapping("/download/{id}")
+    public ResponseEntity<ByteArrayResource> downloadFile( @PathVariable Long id) {
+        FileMetadata metadata = fileService.getFileMetadata(id);
+        byte[] data = fileService.downloadFile(id);
+        ByteArrayResource resource = new ByteArrayResource(data);
+
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
-                .body(data);
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + metadata.getFileName() + "\"")
+                .contentLength(data.length)
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(resource);
     }
 }
