@@ -87,15 +87,6 @@ BitStore follows a decoupled microservices architecture:
 
 ---
 
-## 🔮 Roadmap
-
-* [ ] **PostgreSQL Migration:** Move metadata persistence to disk (currently H2 In-Memory).
-* [ ] **Download Capability:** Implement the re-patching logic in the frontend.
-* [ ] **Replication:** Store blocks on multiple nodes for fault tolerance.
-* [ ] **Docker Compose:** Containerize the entire stack.
-
----
-
 ## 📄 License
 
 **Open Source.**
