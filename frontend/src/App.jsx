@@ -107,9 +107,7 @@ function App() {
 						<div className="bg-white rounded-[2rem] p-8 shadow-2xl shadow-black/5 border border-white/50 backdrop-blur-xl transition-all duration-300">
 							<form
 								className={`relative flex flex-col items-center justify-center w-full h-48 rounded-3xl border-3 border-dashed transition-all duration-300 ease-out
-                  ${dragActive 
-                    ? "border-[#94B4C1] bg-[#94B4C1]/10 scale-[1.02]" 
-                    : "border-[#94B4C1]/60 hover:border-[#94B4C1] hover:bg-[#EFECE3]/15 hover:scale-[1.02]"}`}
+                  ${dragActive ? "border-[#94B4C1] bg-[#94B4C1]/10 scale-[1.02]" : "border-[#94B4C1]/60 hover:border-[#94B4C1] hover:bg-[#EFECE3]/15 hover:scale-[1.02]"}`}
 								onDragEnter={handleDrag}
 								onDragLeave={handleDrag}
 								onDragOver={handleDrag}
@@ -119,9 +117,7 @@ function App() {
 									{/* 🔽 File Drop Icon (copied) */}
 									<div
 										className={`p-4 rounded-full shadow-lg transition-all 
-                  ${dragActive 
-                    ? "bg-[#94B4C1] text-white scale-110" 
-                    : "bg-white text-[#94B4C1]"}`}>
+                  ${dragActive ? "bg-[#94B4C1] text-white scale-110" : "bg-white text-[#94B4C1]"}`}>
 										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
 											<path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
 										</svg>
@@ -134,7 +130,7 @@ function App() {
 							{(uploading || progress > 0) && (
 								<div className="mt-6">
 									<div className="h-2 bg-[#EFECE3] rounded-full overflow-hidden">
-										<div className="h-full bg-[#4A70A9] transition-all duration-300" style={{ width: `${progress}%` }}></div>
+										<div className="h-full bg-[#94B4C1] transition-all duration-300" style={{ width: `${progress}%` }}></div>
 									</div>
 								</div>
 							)}
