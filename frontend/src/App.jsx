@@ -2,132 +2,141 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 
 function App() {
-  const [dragActive, setDragActive] = useState(false);
-  const [files, setFiles] = useState([]);
-  const [storedFiles, setStoredFiles] = useState([]); 
-  const [uploading, setUploading] = useState(false);
-  const [_status, setStatus] = useState(null);
-  const [progress, setProgress] = useState(0);
-  const [selectedFile, setSelectedFile] = useState(null); // The file currently being inspected
-  const [renamingId, setRenamingId] = useState(null);
-  const [newName, setNewName] = useState("");
+	const [dragActive, setDragActive] = useState(false);
+	const [files, setFiles] = useState([]);
+	const [storedFiles, setStoredFiles] = useState([]);
+	const [uploading, setUploading] = useState(false);
+	const [_status, setStatus] = useState(null);
+	const [progress, setProgress] = useState(0);
+	const [selectedFile, setSelectedFile] = useState(null); // The file currently being inspected
+	const [renamingId, setRenamingId] = useState(null);
+	const [newName, setNewName] = useState("");
+	const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
-    fetchStoredFiles();
-  }, []);
+	const QUOTA_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
+	const totalSize = storedFiles.reduce((acc, file) => acc + file.size, 0);
+	const percentUsed = Math.min((totalSize / QUOTA_BYTES) * 100, 100);
 
-  const fetchStoredFiles = async () => {
-    try {
-      const res = await axios.get('/api/v1/files');
-      setStoredFiles(res.data);
-    } catch (err) {
-      console.error("Failed to fetch library", err);
-    }
-  };
+	const filteredFiles = storedFiles.filter(f =>
+		f.fileName.toLowerCase().includes(searchTerm.toLowerCase())
+	);
 
-  const handleDownload = async (e, id, fileName) => {
-    e.stopPropagation(); // Prevent opening inspector when clicking download
-    try {
-      const response = await axios.get(`/api/v1/files/download/${id}`, {
-        responseType: 'blob',
-      });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    } catch (err) {
-      console.error("Download failed", err);
-      alert("Download failed!");
-    }
-  };
+	useEffect(() => {
+		fetchStoredFiles();
+	}, []);
 
-  const handleDelete = async (e, id) => {
-    e.stopPropagation();
-    if (!window.confirm("Permanently delete this file?")) return;
-    try {
-      await axios.delete(`/api/v1/files/${id}`);
-      fetchStoredFiles();
-      if (selectedFile?.id === id) setSelectedFile(null);
-    } catch (err) {
-      console.error("Delete failed", err);
-      alert("Delete failed!");
-    }
-  };
+	const fetchStoredFiles = async () => {
+		try {
+			const res = await axios.get('/api/v1/files');
+			setStoredFiles(res.data);
+		} catch (err) {
+			console.error("Failed to fetch library", err);
+		}
+	};
 
-  const handleRename = async (e, id) => {
-    e.stopPropagation();
-    if (!newName.trim()) {
-      setRenamingId(null);
-      return;
-    }
-    try {
-      await axios.patch(`/api/v1/files/${id}/rename?newName=${encodeURIComponent(newName)}`);
-      fetchStoredFiles();
-      if (selectedFile?.id === id) {
-        setSelectedFile(prev => ({ ...prev, fileName: newName }));
-      }
-      setRenamingId(null);
-      setNewName("");
-    } catch (err) {
-      console.error("Rename failed", err);
-      alert("Rename failed!");
-    }
-  };
+	const handleDownload = async (e, id, fileName) => {
+		e.stopPropagation(); // Prevent opening inspector when clicking download
+		try {
+			const response = await axios.get(`/api/v1/files/download/${id}`, {
+				responseType: 'blob',
+			});
+			const url = window.URL.createObjectURL(new Blob([response.data]));
+			const link = document.createElement('a');
+			link.href = url;
+			link.setAttribute('download', fileName);
+			document.body.appendChild(link);
+			link.click();
+			link.remove();
+		} catch (err) {
+			console.error("Download failed", err);
+			alert("Download failed!");
+		}
+	};
 
-  // ... Drag & Drop Logic ...
-  const handleDrag = (e) => {
-     e.preventDefault(); e.stopPropagation();
-     if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
-     else if (e.type === "dragleave") setDragActive(false);
-  };
-  const handleDrop = (e) => {
-     e.preventDefault(); e.stopPropagation(); setDragActive(false);
-     if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFiles(e.dataTransfer.files);
-  };
-  const handleChange = (e) => {
-     e.preventDefault();
-     if (e.target.files && e.target.files[0]) handleFiles(e.target.files);
-  };
-  const handleFiles = (fileList) => {
-     const newFiles = Array.from(fileList);
-     setFiles((prevFiles) => [...prevFiles, ...newFiles]);
-     setStatus(null); setProgress(0);
-  };
+	const handleDelete = async (e, id) => {
+		e.stopPropagation();
+		if (!window.confirm("Permanently delete this file?")) return;
+		try {
+			await axios.delete(`/api/v1/files/${id}`);
+			fetchStoredFiles();
+			if (selectedFile?.id === id) setSelectedFile(null);
+		} catch (err) {
+			console.error("Delete failed", err);
+			alert("Delete failed!");
+		}
+	};
 
-  const uploadFiles = async () => {
-    setUploading(true); setStatus(null); setProgress(0);
-    try {
-      const totalFiles = files.length;
-      let completedFiles = 0;
-      for (const file of files) {
-        const formData = new FormData();
-        formData.append('file', file);
-        await axios.post('/api/v1/files/upload', formData, {
-          onUploadProgress: (progressEvent) => {
-            const fileProgress = (progressEvent.loaded / progressEvent.total) * 100;
-            const currentTotal = ((completedFiles + (fileProgress / 100)) / totalFiles) * 100;
-            setProgress(Math.round(currentTotal));
-          }
-        });
-        completedFiles++;
-      }
-      setStatus('success');
-      setFiles([]);
-      setProgress(100);
-      fetchStoredFiles(); 
-    } catch (error) {
-      console.error(error);
-      setStatus('error');
-      setProgress(0);
-    } finally {
-      setUploading(false);
-    }
-  };
+	const handleRename = async (e, id) => {
+		e.stopPropagation();
+		if (!newName.trim()) {
+			setRenamingId(null);
+			return;
+		}
+		try {
+			await axios.patch(`/api/v1/files/${id}/rename?newName=${encodeURIComponent(newName)}`);
+			fetchStoredFiles();
+			if (selectedFile?.id === id) {
+				setSelectedFile(prev => ({ ...prev, fileName: newName }));
+			}
+			setRenamingId(null);
+			setNewName("");
+		} catch (err) {
+			console.error("Rename failed", err);
+			alert("Rename failed!");
+		}
+	};
 
-  return (
+	// ... Drag & Drop Logic ...
+	const handleDrag = (e) => {
+		e.preventDefault(); e.stopPropagation();
+		if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+		else if (e.type === "dragleave") setDragActive(false);
+	};
+	const handleDrop = (e) => {
+		e.preventDefault(); e.stopPropagation(); setDragActive(false);
+		if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFiles(e.dataTransfer.files);
+	};
+	const handleChange = (e) => {
+		e.preventDefault();
+		if (e.target.files && e.target.files[0]) handleFiles(e.target.files);
+	};
+	const handleFiles = (fileList) => {
+		const newFiles = Array.from(fileList);
+		setFiles((prevFiles) => [...prevFiles, ...newFiles]);
+		setStatus(null); setProgress(0);
+	};
+
+	const uploadFiles = async () => {
+		setUploading(true); setStatus(null); setProgress(0);
+		try {
+			const totalFiles = files.length;
+			let completedFiles = 0;
+			for (const file of files) {
+				const formData = new FormData();
+				formData.append('file', file);
+				await axios.post('/api/v1/files/upload', formData, {
+					onUploadProgress: (progressEvent) => {
+						const fileProgress = (progressEvent.loaded / progressEvent.total) * 100;
+						const currentTotal = ((completedFiles + (fileProgress / 100)) / totalFiles) * 100;
+						setProgress(Math.round(currentTotal));
+					}
+				});
+				completedFiles++;
+			}
+			setStatus('success');
+			setFiles([]);
+			setProgress(100);
+			fetchStoredFiles();
+		} catch (error) {
+			console.error(error);
+			setStatus('error');
+			setProgress(0);
+		} finally {
+			setUploading(false);
+		}
+	};
+
+	return (
 		<div className="min-h-screen bg-[#EFECE3] text-[#1A1A1A] font-sans flex flex-col items-center py-12 px-6 transition-colors duration-500">
 			<div className="w-full max-w-4xl space-y-8">
 				<div className="text-center">
@@ -138,6 +147,37 @@ function App() {
 				<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
 					{/* LEFT COLUMN: Upload & List */}
 					<div className="space-y-8">
+						{/* STORAGE OVERVIEW CARD */}
+						<div className="bg-[#1A1A1A] text-[#EFECE3] rounded-[2rem] p-8 shadow-2xl shadow-black/10 border border-[#1A1A1A] transition-all duration-300">
+							<div className="flex justify-between items-end mb-6">
+								<div>
+									<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50 mb-1">Storage Quota</p>
+									<p className="text-3xl font-black">{(totalSize / (1024 * 1024)).toFixed(1)} <span className="text-lg text-[#EFECE3]/70 font-bold">MB</span></p>
+								</div>
+								<div className="text-right">
+									<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50 mb-1">of 5.0 GB</p>
+									<p className="text-sm font-bold text-[#EFECE3]">{percentUsed.toFixed(2)}% Used</p>
+								</div>
+							</div>
+
+							<div className="h-3 bg-[#EFECE3]/10 rounded-full overflow-hidden mb-6">
+								<div className="h-full bg-[#94B4C1] transition-all duration-1000 ease-out" style={{ width: `${percentUsed}%` }}></div>
+							</div>
+
+							<div className="flex gap-4 border-t border-[#EFECE3]/10 pt-6">
+								<div className="flex-1">
+									<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50">Total Files</p>
+									<p className="font-bold text-xl">{storedFiles.length}</p>
+								</div>
+								<div className="flex-1">
+									<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50">Deduplicated</p>
+									<p className="font-bold text-xl text-[#94B4C1]">
+										{storedFiles.reduce((acc, f) => acc + f.blockHashes.length, 0)} <span className="text-xs text-[#EFECE3]/50">Blocks</span>
+									</p>
+								</div>
+							</div>
+						</div>
+
 						{/* UPLOAD CARD */}
 						<div className="bg-white rounded-[2rem] p-8 shadow-2xl shadow-black/5 border border-white/50 backdrop-blur-xl transition-all duration-300">
 							<form
@@ -196,28 +236,45 @@ function App() {
 
 						{/* LIBRARY LIST */}
 						<div className="space-y-4">
-							<h2 className="text-2xl font-bold text-[#1A1A1A] px-2">Cloud Library</h2>
-							{storedFiles.length === 0 ? (
-								<div className="bg-white/80 border border-[#1A1A1A]/10 rounded-2xl p-4 text-sm text-[#1A1A1A]/60">
-									No files uploaded yet.
+							<div className="flex items-center justify-between px-2">
+								<h2 className="text-2xl font-bold text-[#1A1A1A]">Cloud Library</h2>
+							</div>
+
+							{/* SEARCH BAR */}
+							<div className="relative group">
+								<div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-[#1A1A1A]/40 group-focus-within:text-[#4A70A9] transition-colors">
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+										<path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+									</svg>
+								</div>
+								<input
+									type="text"
+									placeholder="Search files..."
+									value={searchTerm}
+									onChange={(e) => setSearchTerm(e.target.value)}
+									className="w-full bg-white border border-transparent focus:border-[#4A70A9]/30 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-[#1A1A1A] placeholder:text-[#1A1A1A]/30 outline-none shadow-sm transition-all focus:shadow-md"
+								/>
+							</div>
+
+							{filteredFiles.length === 0 ? (
+								<div className="bg-white/80 border border-[#1A1A1A]/10 rounded-2xl p-8 text-center text-sm font-bold text-[#1A1A1A]/40">
+									{storedFiles.length === 0 ? "No files uploaded yet." : "No files match your search."}
 								</div>
 							) : (
 								<div className="grid gap-3">
-									{storedFiles.map((file) => (
+									{filteredFiles.map((file) => (
 										<div key={file.id} className="space-y-2">
 											<div
 												onClick={() => setSelectedFile(selectedFile?.id === file.id ? null : file)}
 												className={`group cursor-pointer p-4 rounded-2xl shadow-sm border transition-all flex items-center justify-between
-                          ${
-														selectedFile?.id === file.id
-															? "bg-[#1A1A1A] text-[#EFECE3] border-[#1A1A1A] scale-[1.02] shadow-xl"
-															: "bg-white text-[#1A1A1A] border-transparent hover:border-[#4A70A9]/20 hover:shadow-md"
+                          ${selectedFile?.id === file.id
+														? "bg-[#1A1A1A] text-[#EFECE3] border-[#1A1A1A] scale-[1.02] shadow-xl"
+														: "bg-white text-[#1A1A1A] border-transparent hover:border-[#4A70A9]/20 hover:shadow-md"
 													}`}>
 												<div className="flex items-center gap-4">
 													<div
-														className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-															selectedFile?.id === file.id ? "bg-[#EFECE3]/20 text-[#EFECE3]" : "bg-[#EFECE3] text-[#1A1A1A]"
-														}`}>
+														className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedFile?.id === file.id ? "bg-[#EFECE3]/20 text-[#EFECE3]" : "bg-[#EFECE3] text-[#1A1A1A]"
+															}`}>
 														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
 															<path
 																strokeLinecap="round"
@@ -247,9 +304,8 @@ function App() {
 												</div>
 												<button
 													onClick={(e) => handleDownload(e, file.id, file.fileName)}
-													className={`p-3 rounded-xl transition-colors ${
-														selectedFile?.id === file.id ? "bg-[#EFECE3]/20 hover:bg-[#EFECE3] hover:text-[#1A1A1A]" : "bg-[#EFECE3] hover:bg-[#4A70A9] hover:text-white"
-													}`}
+													className={`p-3 rounded-xl transition-colors ${selectedFile?.id === file.id ? "bg-[#EFECE3]/20 hover:bg-[#EFECE3] hover:text-[#1A1A1A]" : "bg-[#EFECE3] hover:bg-[#4A70A9] hover:text-white"
+														}`}
 													title="Download">
 													<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
 														<path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M12 9.75V15m0 0 3-3m-3 3-3-3" />
