@@ -12,14 +12,38 @@ function App() {
 	const [renamingId, setRenamingId] = useState(null);
 	const [newName, setNewName] = useState("");
 	const [searchTerm, setSearchTerm] = useState("");
+	const [activeTab, setActiveTab] = useState('home'); // 'home', 'folders', 'trash'
 
 	const QUOTA_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
 	const totalSize = storedFiles.reduce((acc, file) => acc + file.size, 0);
 	const percentUsed = Math.min((totalSize / QUOTA_BYTES) * 100, 100);
 
-	const filteredFiles = storedFiles.filter(f =>
-		f.fileName.toLowerCase().includes(searchTerm.toLowerCase())
-	);
+	const filteredFiles = storedFiles.filter(f => {
+		const matchesSearch = f.fileName.toLowerCase().includes(searchTerm.toLowerCase());
+		if (activeTab === 'home') return matchesSearch && !f.trashed;
+		if (activeTab === 'trash') return matchesSearch && f.trashed;
+		// Folders view will be handled separately or added later
+		return matchesSearch && !f.trashed;
+	});
+
+	// Calculate file categories
+	const getCategory = (fileName) => {
+		const ext = fileName.split('.').pop().toLowerCase();
+		if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'].includes(ext)) return 'Images';
+		if (['pdf', 'doc', 'docx', 'txt', 'rtf', 'csv'].includes(ext)) return 'Documents';
+		if (['mp3', 'mp4', 'wav', 'mov', 'avi'].includes(ext)) return 'Media';
+		if (['exe', 'dmg', 'apk', 'app'].includes(ext)) return 'Apps';
+		return 'Other';
+	};
+
+	const categorySizes = storedFiles.filter(f => !f.trashed).reduce((acc, file) => {
+		const cat = getCategory(file.fileName);
+		acc[cat] = (acc[cat] || 0) + file.size;
+		return acc;
+	}, { Images: 0, Documents: 0, Media: 0, Apps: 0, Other: 0 });
+
+	const activeTotalSize = storedFiles.filter(f => !f.trashed).reduce((acc, file) => acc + file.size, 0);
+	const activePercentUsed = Math.min((activeTotalSize / QUOTA_BYTES) * 100, 100);
 
 	useEffect(() => {
 		fetchStoredFiles();
@@ -86,6 +110,29 @@ function App() {
 		}
 	};
 
+	const handleTrash = async (e, id) => {
+		e.stopPropagation();
+		try {
+			await axios.post(`/api/v1/files/${id}/trash`);
+			fetchStoredFiles();
+			if (selectedFile?.id === id) setSelectedFile(null);
+		} catch (err) {
+			console.error("Move to trash failed", err);
+			alert("Move to trash failed!");
+		}
+	};
+
+	const handleRestore = async (e, id) => {
+		e.stopPropagation();
+		try {
+			await axios.post(`/api/v1/files/${id}/restore`);
+			fetchStoredFiles();
+		} catch (err) {
+			console.error("Restore failed", err);
+			alert("Restore failed!");
+		}
+	};
+
 	// ... Drag & Drop Logic ...
 	const handleDrag = (e) => {
 		e.preventDefault(); e.stopPropagation();
@@ -138,264 +185,334 @@ function App() {
 
 	return (
 		<div className="min-h-screen bg-[#EFECE3] text-[#1A1A1A] font-sans flex flex-col items-center py-12 px-6 transition-colors duration-500">
-			<div className="w-full max-w-4xl space-y-8">
+			<div className="w-full max-w-7xl space-y-8">
 				<div className="text-center">
 					<h1 className="text-5xl font-black tracking-tighter mb-2 text-[#1A1A1A]">BitStore.</h1>
 					<p className="text-lg font-medium text-[#1A1A1A]/50">Decentralized Object Storage</p>
 				</div>
 
-				<div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-					{/* LEFT COLUMN: Upload & List */}
-					<div className="space-y-8">
-						{/* STORAGE OVERVIEW CARD */}
-						<div className="bg-[#1A1A1A] text-[#EFECE3] rounded-[2rem] p-8 shadow-2xl shadow-black/10 border border-[#1A1A1A] transition-all duration-300">
-							<div className="flex justify-between items-end mb-6">
-								<div>
-									<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50 mb-1">Storage Quota</p>
-									<p className="text-3xl font-black">{(totalSize / (1024 * 1024)).toFixed(1)} <span className="text-lg text-[#EFECE3]/70 font-bold">MB</span></p>
-								</div>
-								<div className="text-right">
-									<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50 mb-1">of 5.0 GB</p>
-									<p className="text-sm font-bold text-[#EFECE3]">{percentUsed.toFixed(2)}% Used</p>
-								</div>
+				<div className="flex flex-col lg:flex-row gap-8 items-start w-full">
+					{/* LEFT SIDEBAR */}
+					<div className="w-full lg:w-64 shrink-0 space-y-2 sticky top-12 z-10">
+						<button
+							onClick={() => setActiveTab('home')}
+							className={`w-full text-left px-6 py-4 rounded-2xl font-bold transition-all ${activeTab === 'home' ? 'bg-[#1A1A1A] text-[#EFECE3] shadow-lg' : 'text-[#1A1A1A]/70 hover:bg-white'}`}>
+							<div className="flex items-center gap-3">
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
+								All Files
 							</div>
-
-							<div className="h-3 bg-[#EFECE3]/10 rounded-full overflow-hidden mb-6">
-								<div className="h-full bg-[#94B4C1] transition-all duration-1000 ease-out" style={{ width: `${percentUsed}%` }}></div>
+						</button>
+						<button
+							onClick={() => setActiveTab('folders')}
+							className={`w-full text-left px-6 py-4 rounded-2xl font-bold transition-all ${activeTab === 'folders' ? 'bg-[#1A1A1A] text-[#EFECE3] shadow-lg' : 'text-[#1A1A1A]/70 hover:bg-white'}`}>
+							<div className="flex items-center gap-3">
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5M12 3v18" /></svg>
+								Folders
 							</div>
-
-							<div className="flex gap-4 border-t border-[#EFECE3]/10 pt-6">
-								<div className="flex-1">
-									<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50">Total Files</p>
-									<p className="font-bold text-xl">{storedFiles.length}</p>
-								</div>
-								<div className="flex-1">
-									<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50">Deduplicated</p>
-									<p className="font-bold text-xl text-[#94B4C1]">
-										{storedFiles.reduce((acc, f) => acc + f.blockHashes.length, 0)} <span className="text-xs text-[#EFECE3]/50">Blocks</span>
-									</p>
-								</div>
+						</button>
+						<button
+							onClick={() => setActiveTab('trash')}
+							className={`w-full text-left px-6 py-4 rounded-2xl font-bold transition-all ${activeTab === 'trash' ? 'bg-[#1A1A1A] text-[#EFECE3] shadow-lg' : 'text-[#1A1A1A]/70 hover:bg-white'}`}>
+							<div className="flex items-center gap-3">
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+								Trash
 							</div>
-						</div>
-
-						{/* UPLOAD CARD */}
-						<div className="bg-white rounded-[2rem] p-8 shadow-2xl shadow-black/5 border border-white/50 backdrop-blur-xl transition-all duration-300">
-							<form
-								className={`relative flex flex-col items-center justify-center w-full h-48 rounded-3xl border-3 border-dashed transition-all duration-300 ease-out
-                  ${dragActive ? "border-[#94B4C1] bg-[#94B4C1]/10 scale-[1.02]" : "border-[#94B4C1]/60 hover:border-[#94B4C1] hover:bg-[#EFECE3]/15 hover:scale-[1.02]"}`}
-								onDragEnter={handleDrag}
-								onDragLeave={handleDrag}
-								onDragOver={handleDrag}
-								onDrop={handleDrop}>
-								<input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleChange} multiple />
-								<div className="flex flex-col items-center gap-4 pointer-events-none">
-									{/* 🔽 File Drop Icon (copied) */}
-									<div
-										className={`p-4 rounded-full shadow-lg transition-all 
-                  ${dragActive ? "bg-[#94B4C1] text-white scale-110" : "bg-white text-[#94B4C1]"}`}>
-										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-											<path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-										</svg>
-									</div>
-
-									<p className="text-lg font-bold text-[#1A1A1A]">{dragActive ? "Drop files now" : "Drag & Drop Files"}</p>
-								</div>
-							</form>
-
-							{(uploading || progress > 0) && (
-								<div className="mt-6">
-									<div className="h-2 bg-[#EFECE3] rounded-full overflow-hidden">
-										<div className="h-full bg-[#94B4C1] transition-all duration-300" style={{ width: `${progress}%` }}></div>
-									</div>
-								</div>
-							)}
-
-							{files.length > 0 && (
-								<div className="mt-6 space-y-3">
-									<div className="flex items-center justify-between px-2 mb-2">
-										<span className="text-xs font-bold uppercase tracking-widest text-[#1A1A1A]/40">Queue ({files.length})</span>
-										<button onClick={() => setFiles([])} className="text-xs font-bold text-red-500 hover:text-red-700 transition-colors uppercase tracking-widest cursor-pointer">
-											CLEAR
-										</button>
-									</div>
-									{files.map((f, i) => (
-										<div key={i} className="flex justify-between p-3 bg-[#EFECE3]/50 rounded-xl text-sm font-bold text-[#1A1A1A]">
-											<span>{f.name}</span> <span className="text-[#1A1A1A]/40">{(f.size / 1024).toFixed(1)} KB</span>
-										</div>
-									))}
-									<button
-										onClick={uploadFiles}
-										disabled={uploading}
-										className={`w-full py-4 rounded-xl font-bold uppercase tracking-wider shadow-lg transition-all 
-                         ${uploading ? "bg-[#EFECE3] text-[#1A1A1A]/40" : "bg-[#1A1A1A] text-[#EFECE3] hover:-translate-y-1 shadow-[#1A1A1A]/20"}`}>
-										{uploading ? "Uploading..." : "Start Upload"}
-									</button>
-								</div>
-							)}
-						</div>
-
-						{/* LIBRARY LIST */}
-						<div className="space-y-4">
-							<div className="flex items-center justify-between px-2">
-								<h2 className="text-2xl font-bold text-[#1A1A1A]">Cloud Library</h2>
-							</div>
-
-							{/* SEARCH BAR */}
-							<div className="relative group">
-								<div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-[#1A1A1A]/40 group-focus-within:text-[#4A70A9] transition-colors">
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-										<path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-									</svg>
-								</div>
-								<input
-									type="text"
-									placeholder="Search files..."
-									value={searchTerm}
-									onChange={(e) => setSearchTerm(e.target.value)}
-									className="w-full bg-white border border-transparent focus:border-[#4A70A9]/30 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-[#1A1A1A] placeholder:text-[#1A1A1A]/30 outline-none shadow-sm transition-all focus:shadow-md"
-								/>
-							</div>
-
-							{filteredFiles.length === 0 ? (
-								<div className="bg-white/80 border border-[#1A1A1A]/10 rounded-2xl p-8 text-center text-sm font-bold text-[#1A1A1A]/40">
-									{storedFiles.length === 0 ? "No files uploaded yet." : "No files match your search."}
-								</div>
-							) : (
-								<div className="grid gap-3">
-									{filteredFiles.map((file) => (
-										<div key={file.id} className="space-y-2">
-											<div
-												onClick={() => setSelectedFile(selectedFile?.id === file.id ? null : file)}
-												className={`group cursor-pointer p-4 rounded-2xl shadow-sm border transition-all flex items-center justify-between
-                          ${selectedFile?.id === file.id
-														? "bg-[#1A1A1A] text-[#EFECE3] border-[#1A1A1A] scale-[1.02] shadow-xl"
-														: "bg-white text-[#1A1A1A] border-transparent hover:border-[#4A70A9]/20 hover:shadow-md"
-													}`}>
-												<div className="flex items-center gap-4">
-													<div
-														className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedFile?.id === file.id ? "bg-[#EFECE3]/20 text-[#EFECE3]" : "bg-[#EFECE3] text-[#1A1A1A]"
-															}`}>
-														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-															<path
-																strokeLinecap="round"
-																strokeLinejoin="round"
-																d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-															/>
-														</svg>
-													</div>
-													<div className="flex-1 min-w-0">
-														{renamingId === file.id ? (
-															<input
-																autoFocus
-																className="bg-transparent border-b border-[#EFECE3] outline-none font-bold w-full"
-																value={newName}
-																onChange={(e) => setNewName(e.target.value)}
-																onBlur={(e) => handleRename(e, file.id)}
-																onKeyDown={(e) => e.key === 'Enter' && handleRename(e, file.id)}
-																onClick={(e) => e.stopPropagation()}
-															/>
-														) : (
-															<p className="font-bold truncate">{file.fileName}</p>
-														)}
-														<p className={`text-xs ${selectedFile?.id === file.id ? "text-[#EFECE3]/50" : "text-[#1A1A1A]/50"}`}>
-															{(file.size / 1024).toFixed(1)} KB • {file.blockHashes.length} Blocks
-														</p>
-													</div>
-												</div>
-												<button
-													onClick={(e) => handleDownload(e, file.id, file.fileName)}
-													className={`p-3 rounded-xl transition-colors ${selectedFile?.id === file.id ? "bg-[#EFECE3]/20 hover:bg-[#EFECE3] hover:text-[#1A1A1A]" : "bg-[#EFECE3] hover:bg-[#4A70A9] hover:text-white"
-														}`}
-													title="Download">
-													<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-														<path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M12 9.75V15m0 0 3-3m-3 3-3-3" />
-													</svg>
-												</button>
-											</div>
-
-											{/* OPTIONS BAR */}
-											<div
-												className={`overflow-hidden transition-all duration-300 ease-in-out px-4 
-                        ${selectedFile?.id === file.id ? "max-h-20 opacity-100 mb-4" : "max-h-0 opacity-0"}`}>
-												<div className="flex bg-white/50 backdrop-blur-md border border-[#1A1A1A]/5 rounded-2xl p-2 gap-2 shadow-inner">
-													<button
-														onClick={(e) => {
-															e.stopPropagation();
-															setRenamingId(file.id);
-															setNewName(file.fileName);
-														}}
-														className="flex-1 py-2 px-4 rounded-xl text-xs font-bold uppercase tracking-widest text-[#1A1A1A]/60 hover:bg-[#1A1A1A] hover:text-[#EFECE3] transition-all flex items-center justify-center gap-2">
-														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-															<path
-																strokeLinecap="round"
-																strokeLinejoin="round"
-																d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
-															/>
-														</svg>
-														Rename
-													</button>
-													<button
-														onClick={(e) => handleDelete(e, file.id)}
-														className="flex-1 py-2 px-4 rounded-xl text-xs font-bold uppercase tracking-widest text-red-500/80 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
-														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-															<path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.244 2.244 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-														</svg>
-														Delete
-													</button>
-												</div>
-											</div>
-										</div>
-									))}
-								</div>
-							)}
-						</div>
+						</button>
 					</div>
 
-					{/* RIGHT COLUMN: INSPECTOR */}
-					<div className="sticky top-8">
-						{selectedFile ? (
-							<div className="bg-white rounded-[2rem] p-8 shadow-2xl shadow-black/5 border border-white/50 backdrop-blur-xl animate-fade-in-up">
-								<div className="mb-6 pb-6 border-b border-[#1A1A1A]/5">
-									<p className="text-xs font-bold uppercase tracking-widest text-[#1A1A1A]/40 mb-1">Under the hood</p>
-									<h2 className="text-3xl font-black text-[#1A1A1A] leading-tight">File DNA</h2>
-									<p className="text-[#1A1A1A]/60 mt-2">
-										This file is not stored as a single piece. It was split into
-										<strong className="text-[#1A1A1A]"> {selectedFile.blockHashes.length} Content-Addressable Blocks</strong>.
-									</p>
+					{/* MAIN CONTENT AREA */}
+					<div className="flex-1 w-full min-w-0 grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-8 items-start">
+						{/* MIDDLE COLUMN: Overview, Upload, List */}
+						<div className="space-y-8 min-w-0">
+							{/* HORIZONTAL STORAGE OVERVIEW */}
+							<div className="bg-[#1A1A1A] text-[#EFECE3] rounded-[2rem] p-8 shadow-2xl shadow-black/10 border border-[#1A1A1A] transition-all duration-300 flex flex-col sm:flex-row items-center justify-between gap-8">
+
+								{/* Circular Meter */}
+								<div className="relative w-32 h-32 shrink-0 flex items-center justify-center">
+									<svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+										<circle cx="50" cy="50" r="40" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-[#EFECE3]/10" />
+										<circle
+											cx="50" cy="50" r="40"
+											stroke="currentColor"
+											strokeWidth="8"
+											fill="transparent"
+											strokeDasharray="251.2"
+											strokeDashoffset={251.2 - (251.2 * activePercentUsed) / 100}
+											className="text-[#94B4C1] transition-all duration-1000 ease-out drop-shadow-[0_0_8px_rgba(148,180,193,0.5)]"
+											strokeLinecap="round"
+										/>
+									</svg>
+									<div className="absolute flex flex-col items-center justify-center text-center">
+										<span className="text-xl font-black">{activePercentUsed.toFixed(1)}%</span>
+										<span className="text-[10px] font-bold uppercase tracking-widest text-[#EFECE3]/50">Used</span>
+									</div>
 								</div>
 
-								<div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-									{selectedFile.blockHashes.map((hash, i) => (
-										<div key={i} className="group bg-[#EFECE3]/30 p-4 rounded-xl border border-[#1A1A1A]/5 hover:border-[#4A70A9]/30 hover:bg-[#EFECE3] transition-all">
-											<div className="flex items-center gap-3 mb-2">
-												<div className="w-8 h-8 rounded-lg bg-[#1A1A1A] text-white flex items-center justify-center text-xs font-bold font-mono">{i + 1}</div>
-												<span className="text-xs font-bold uppercase tracking-widest text-[#1A1A1A]/40">1024 KB Chunk</span>
-											</div>
-											<div className="font-mono text-[10px] break-all text-[#1A1A1A]/70 leading-relaxed group-hover:text-[#4A70A9] transition-colors">{hash}</div>
+								{/* Stats & Categories */}
+								<div className="flex-1 space-y-6">
+									<div className="flex justify-between items-end">
+										<div>
+											<h3 className="text-2xl font-black">{(activeTotalSize / (1024 * 1024)).toFixed(1)} <span className="text-base text-[#EFECE3]/70 font-bold">MB</span></h3>
+											<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50">of 5.0 GB Quota</p>
 										</div>
-									))}
+										<div className="text-right">
+											<h3 className="text-2xl font-black text-[#94B4C1]">{storedFiles.filter(f => !f.trashed).reduce((acc, f) => acc + f.blockHashes.length, 0)}</h3>
+											<p className="text-xs font-bold uppercase tracking-widest text-[#EFECE3]/50">Deduplicated Blocks</p>
+										</div>
+									</div>
+
+									{/* Categories Bar */}
+									<div className="space-y-3">
+										<div className="flex h-3 rounded-full overflow-hidden bg-[#EFECE3]/10 gap-[2px]">
+											<div className="h-full bg-[#4A70A9]" style={{ width: `${(categorySizes.Documents / activeTotalSize) * 100 || 0}%` }}></div>
+											<div className="h-full bg-[#94B4C1]" style={{ width: `${(categorySizes.Images / activeTotalSize) * 100 || 0}%` }}></div>
+											<div className="h-full bg-[#D4A373]" style={{ width: `${(categorySizes.Media / activeTotalSize) * 100 || 0}%` }}></div>
+											<div className="h-full bg-[#EFECE3]" style={{ width: `${(categorySizes.Apps / activeTotalSize) * 100 || 0}%` }}></div>
+										</div>
+										<div className="flex flex-wrap gap-4 text-xs font-bold uppercase tracking-widest">
+											<div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#4A70A9]"></div> <span className="text-[#EFECE3]/70">Docs</span></div>
+											<div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#94B4C1]"></div> <span className="text-[#EFECE3]/70">Images</span></div>
+											<div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#D4A373]"></div> <span className="text-[#EFECE3]/70">Media</span></div>
+											<div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-[#EFECE3]"></div> <span className="text-[#EFECE3]/70">Apps</span></div>
+										</div>
+									</div>
+								</div>
+							</div>
+
+
+							{/* LIBRARY LIST */}
+							<div className="space-y-4">
+								<div className="flex items-center justify-between px-2">
+									<h2 className="text-2xl font-bold text-[#1A1A1A]">Cloud Library</h2>
 								</div>
 
-								<div className="mt-6 pt-6 border-t border-[#1A1A1A]/5 text-center">
-									<p className="text-xs text-[#1A1A1A]/40">
-										When you click <strong className="text-[#1A1A1A]">Download</strong>, the system fetches these {selectedFile.blockHashes.length} unique blocks and stitches them back together.
-									</p>
-								</div>
-							</div>
-						) : (
-							<div className="h-full flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-[#1A1A1A]/20 rounded-[2rem] bg-white/40 text-[#1A1A1A]/70">
-								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 mb-4">
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"
+								{/* SEARCH BAR */}
+								<div className="relative group">
+									<div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-[#1A1A1A]/40 group-focus-within:text-[#4A70A9] transition-colors">
+										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+											<path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+										</svg>
+									</div>
+									<input
+										type="text"
+										placeholder="Search files..."
+										value={searchTerm}
+										onChange={(e) => setSearchTerm(e.target.value)}
+										className="w-full bg-white border border-transparent focus:border-[#4A70A9]/30 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold text-[#1A1A1A] placeholder:text-[#1A1A1A]/30 outline-none shadow-sm transition-all focus:shadow-md"
 									/>
-									<path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-								</svg>
-								<p className="text-xl font-bold">Select a file to inspect</p>
-								<p className="text-sm mt-2">See how BitStore de-chunks and hashes your data.</p>
+								</div>
+
+								{filteredFiles.length === 0 ? (
+									<div className="bg-white/80 border border-[#1A1A1A]/10 rounded-2xl p-8 text-center text-sm font-bold text-[#1A1A1A]/40">
+										{storedFiles.length === 0 ? "No files uploaded yet." : "No files match your search."}
+									</div>
+								) : (
+									<div className="grid gap-3">
+										{filteredFiles.map((file) => (
+											<div key={file.id} className="space-y-2">
+												<div
+													onClick={() => setSelectedFile(selectedFile?.id === file.id ? null : file)}
+													className={`group cursor-pointer p-4 rounded-2xl shadow-sm border transition-all flex items-center justify-between
+                          ${selectedFile?.id === file.id
+															? "bg-[#1A1A1A] text-[#EFECE3] border-[#1A1A1A] scale-[1.02] shadow-xl"
+															: "bg-white text-[#1A1A1A] border-transparent hover:border-[#4A70A9]/20 hover:shadow-md"
+														}`}>
+													<div className="flex items-center gap-4">
+														<div
+															className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedFile?.id === file.id ? "bg-[#EFECE3]/20 text-[#EFECE3]" : "bg-[#EFECE3] text-[#1A1A1A]"
+																}`}>
+															<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+																<path
+																	strokeLinecap="round"
+																	strokeLinejoin="round"
+																	d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+																/>
+															</svg>
+														</div>
+														<div className="flex-1 min-w-0">
+															{renamingId === file.id ? (
+																<input
+																	autoFocus
+																	className="bg-transparent border-b border-[#EFECE3] outline-none font-bold w-full"
+																	value={newName}
+																	onChange={(e) => setNewName(e.target.value)}
+																	onBlur={(e) => handleRename(e, file.id)}
+																	onKeyDown={(e) => e.key === 'Enter' && handleRename(e, file.id)}
+																	onClick={(e) => e.stopPropagation()}
+																/>
+															) : (
+																<p className="font-bold truncate">{file.fileName}</p>
+															)}
+															<p className={`text-xs ${selectedFile?.id === file.id ? "text-[#EFECE3]/50" : "text-[#1A1A1A]/50"}`}>
+																{(file.size / 1024).toFixed(1)} KB • {file.blockHashes.length} Blocks
+															</p>
+														</div>
+													</div>
+													<button
+														onClick={(e) => handleDownload(e, file.id, file.fileName)}
+														className={`p-3 rounded-xl transition-colors ${selectedFile?.id === file.id ? "bg-[#EFECE3]/20 hover:bg-[#EFECE3] hover:text-[#1A1A1A]" : "bg-[#EFECE3] hover:bg-[#4A70A9] hover:text-white"
+															}`}
+														title="Download">
+														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+															<path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M12 9.75V15m0 0 3-3m-3 3-3-3" />
+														</svg>
+													</button>
+												</div>
+
+												{/* OPTIONS BAR */}
+												<div
+													className={`overflow-hidden transition-all duration-300 ease-in-out px-4 
+                        ${selectedFile?.id === file.id ? "max-h-20 opacity-100 mb-4" : "max-h-0 opacity-0"}`}>
+													<div className="flex bg-white/50 backdrop-blur-md border border-[#1A1A1A]/5 rounded-2xl p-2 gap-2 shadow-inner">
+														{activeTab !== 'trash' ? (
+															<>
+																<button
+																	onClick={(e) => {
+																		e.stopPropagation();
+																		setRenamingId(file.id);
+																		setNewName(file.fileName);
+																	}}
+																	className="flex-1 py-2 px-4 rounded-xl text-xs font-bold uppercase tracking-widest text-[#1A1A1A]/60 hover:bg-[#1A1A1A] hover:text-[#EFECE3] transition-all flex items-center justify-center gap-2">
+																	<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+																		<path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+																	</svg>
+																	Rename
+																</button>
+																<button
+																	onClick={(e) => handleTrash(e, file.id)}
+																	className="flex-1 py-2 px-4 rounded-xl text-xs font-bold uppercase tracking-widest text-orange-500/80 hover:bg-orange-500 hover:text-white transition-all flex items-center justify-center gap-2">
+																	<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+																		<path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+																	</svg>
+																	Trash
+																</button>
+															</>
+														) : (
+															<>
+																<button
+																	onClick={(e) => handleRestore(e, file.id)}
+																	className="flex-1 py-2 px-4 rounded-xl text-xs font-bold uppercase tracking-widest text-emerald-600/80 hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2">
+																	<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+																		<path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+																	</svg>
+																	Restore
+																</button>
+																<button
+																	onClick={(e) => handleDelete(e, file.id)}
+																	className="flex-1 py-2 px-4 rounded-xl text-xs font-bold uppercase tracking-widest text-red-500/80 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
+																	<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+																		<path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+																	</svg>
+																	Delete Forever
+																</button>
+															</>
+														)}
+													</div>
+												</div>
+											</div>
+										))}
+									</div>
+								)}
 							</div>
-						)}
+						</div>
+
+						{/* RIGHT COLUMN: INSPECTOR */}
+						<div className="sticky top-12 w-full space-y-8">
+
+							{/* UPLOAD CARD */}
+							<div className="bg-white rounded-[2rem] p-8 shadow-2xl shadow-black/5 border border-white/50 backdrop-blur-xl transition-all duration-300">
+								<form
+									className={`relative flex flex-col items-center justify-center w-full aspect-square rounded-[2rem] border-3 border-dashed transition-all duration-300 ease-out
+                  ${dragActive ? "border-[#94B4C1] bg-[#94B4C1]/10 scale-[1.02]" : "border-[#94B4C1]/60 hover:border-[#94B4C1] hover:bg-[#EFECE3]/15 hover:scale-[1.02]"}`}
+									onDragEnter={handleDrag}
+									onDragLeave={handleDrag}
+									onDragOver={handleDrag}
+									onDrop={handleDrop}>
+									<input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleChange} multiple />
+									<div className="flex flex-col items-center gap-4 pointer-events-none">
+										<div
+											className={`p-4 rounded-full shadow-lg transition-all 
+                  ${dragActive ? "bg-[#94B4C1] text-white scale-110" : "bg-white text-[#94B4C1]"}`}>
+											<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+												<path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+											</svg>
+										</div>
+										<p className="text-lg font-bold text-[#1A1A1A] text-center">{dragActive ? "Drop files now" : "Drag & Drop Files"}</p>
+									</div>
+								</form>
+
+								{(uploading || progress > 0) && (
+									<div className="mt-6">
+										<div className="h-2 bg-[#EFECE3] rounded-full overflow-hidden">
+											<div className="h-full bg-[#94B4C1] transition-all duration-300" style={{ width: `${progress}%` }}></div>
+										</div>
+									</div>
+								)}
+
+								{files.length > 0 && (
+									<div className="mt-6 space-y-3">
+										<div className="flex items-center justify-between px-2 mb-2">
+											<span className="text-xs font-bold uppercase tracking-widest text-[#1A1A1A]/40">Queue ({files.length})</span>
+											<button onClick={() => setFiles([])} className="text-xs font-bold text-red-500 hover:text-red-700 transition-colors uppercase tracking-widest cursor-pointer">
+												CLEAR
+											</button>
+										</div>
+										{files.map((f, i) => (
+											<div key={i} className="flex justify-between p-3 bg-[#EFECE3]/50 rounded-xl text-sm font-bold text-[#1A1A1A]">
+												<span className="truncate">{f.name}</span> <span className="text-[#1A1A1A]/40 ml-2 whitespace-nowrap">{(f.size / 1024).toFixed(1)} KB</span>
+											</div>
+										))}
+										<button
+											onClick={uploadFiles}
+											disabled={uploading}
+											className={`w-full py-4 rounded-xl font-bold uppercase tracking-wider shadow-lg transition-all 
+                         ${uploading ? "bg-[#EFECE3] text-[#1A1A1A]/40" : "bg-[#1A1A1A] text-[#EFECE3] hover:-translate-y-1 shadow-[#1A1A1A]/20"}`}>
+											{uploading ? "Uploading..." : "Start Upload"}
+										</button>
+									</div>
+								)}
+							</div>
+
+							{selectedFile ? (
+								<div className="bg-white rounded-[2rem] p-8 shadow-2xl shadow-black/5 border border-white/50 backdrop-blur-xl animate-fade-in-up">
+									<div className="mb-6 pb-6 border-b border-[#1A1A1A]/5">
+										<p className="text-xs font-bold uppercase tracking-widest text-[#1A1A1A]/40 mb-1">Under the hood</p>
+										<h2 className="text-3xl font-black text-[#1A1A1A] leading-tight break-all">{selectedFile.fileName}</h2>
+										<p className="text-[#1A1A1A]/60 mt-2">
+											This file is not stored as a single piece. It was split into
+											<strong className="text-[#1A1A1A]"> {selectedFile.blockHashes.length} Content-Addressable Blocks</strong>.
+										</p>
+									</div>
+
+									<div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+										{selectedFile.blockHashes.map((hash, i) => (
+											<div key={i} className="group bg-[#EFECE3]/30 p-4 rounded-xl border border-[#1A1A1A]/5 hover:border-[#4A70A9]/30 hover:bg-[#EFECE3] transition-all">
+												<div className="flex items-center gap-3 mb-2">
+													<div className="w-8 h-8 rounded-lg bg-[#1A1A1A] text-white flex items-center justify-center text-xs font-bold font-mono">{i + 1}</div>
+													<span className="text-xs font-bold uppercase tracking-widest text-[#1A1A1A]/40">1024 KB Chunk</span>
+												</div>
+												<div className="font-mono text-[10px] break-all text-[#1A1A1A]/70 leading-relaxed group-hover:text-[#4A70A9] transition-colors">{hash}</div>
+											</div>
+										))}
+									</div>
+
+									<div className="mt-6 pt-6 border-t border-[#1A1A1A]/5 text-center">
+										<p className="text-xs text-[#1A1A1A]/40">
+											When you click <strong className="text-[#1A1A1A]">Download</strong>, the system fetches these blocks and stitches them back together.
+										</p>
+									</div>
+								</div>
+							) : (
+								<div className="h-[600px] flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-[#1A1A1A]/20 rounded-[2rem] bg-white/40 text-[#1A1A1A]/70">
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 mb-4">
+										<path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+										<path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+									</svg>
+									<p className="text-xl font-bold">Select a file to inspect</p>
+									<p className="text-sm mt-2">See how BitStore de-chunks and hashes your data.</p>
+								</div>
+							)}
+						</div>
 					</div>
 				</div>
 			</div>
