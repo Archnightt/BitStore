@@ -1,5 +1,6 @@
 package com.bitstore.metadataservice.service;
 
+import com.bitstore.metadataservice.dto.FileMetadataResponse;
 import com.bitstore.metadataservice.model.FileMetadata;
 import com.bitstore.metadataservice.repository.FileMetadataRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,8 +27,8 @@ public class FileService {
 
     @Value("${block.service.url}")
     private String blockServiceUrl;
-    
-    private static final int CHUNK_SIZE = 1024 * 1024; // 1MB
+
+    public static final int CHUNK_SIZE = 1024 * 1024; // 1MB
 
     public void uploadFile(MultipartFile file) throws IOException, NoSuchAlgorithmException {
         String fileName = file.getOriginalFilename();
@@ -43,18 +44,36 @@ public class FileService {
             byte[] chunk = new byte[end - start];
             System.arraycopy(bytes, start, chunk, 0, chunk.length);
 
-            String hash = calculateHash(chunk);
+            String hash = uploadAndVerifyChunk(chunk);
             blockHashes.add(hash);
-
-            // Send chunk to Block Service (using dynamic URL)
-            restTemplate.postForObject(blockServiceUrl, chunk, String.class);
         }
 
         FileMetadata metadata = new FileMetadata();
         metadata.setFileName(fileName);
         metadata.setSize(fileSize);
         metadata.setBlockHashes(blockHashes);
+        metadata.setCreatedAt(java.time.Instant.now()); // Set the creation timestamp
         repository.save(metadata);
+    }
+
+    public String uploadAndVerifyChunk(byte[] chunk) {
+        try {
+            String hash = calculateHash(chunk);
+            // Send chunk to Block Service
+            restTemplate.postForObject(blockServiceUrl, chunk, String.class);
+            return hash;
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("Error calculating hash", e);
+        }
+    }
+
+    public FileMetadataResponse map(FileMetadata metadata) {
+        return new FileMetadataResponse(
+                metadata.getId(),
+                metadata.getFileName(),
+                metadata.getSize(),
+                metadata.getBlockHashes(),
+                metadata.getCreatedAt());
     }
 
     public byte[] downloadFile(Long id) {
@@ -83,13 +102,25 @@ public class FileService {
         return repository.findById(id).orElseThrow(() -> new RuntimeException("File not found"));
     }
 
+    public void deleteFile(Long id) {
+        repository.deleteById(id);
+    }
+
+    public void renameFile(Long id, String newName) {
+        FileMetadata metadata = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("File not found"));
+        metadata.setFileName(newName);
+        repository.save(metadata);
+    }
+
     private String calculateHash(byte[] bytes) throws NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(bytes);
         StringBuilder hexString = new StringBuilder();
         for (byte b : hash) {
             String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) hexString.append('0');
+            if (hex.length() == 1)
+                hexString.append('0');
             hexString.append(hex);
         }
         return hexString.toString();

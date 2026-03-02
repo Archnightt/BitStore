@@ -6,9 +6,11 @@ function App() {
   const [files, setFiles] = useState([]);
   const [storedFiles, setStoredFiles] = useState([]); 
   const [uploading, setUploading] = useState(false);
-  const [status, setStatus] = useState(null);
+  const [_status, setStatus] = useState(null);
   const [progress, setProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState(null); // The file currently being inspected
+  const [renamingId, setRenamingId] = useState(null);
+  const [newName, setNewName] = useState("");
 
   useEffect(() => {
     fetchStoredFiles();
@@ -39,6 +41,39 @@ function App() {
     } catch (err) {
       console.error("Download failed", err);
       alert("Download failed!");
+    }
+  };
+
+  const handleDelete = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm("Permanently delete this file?")) return;
+    try {
+      await axios.delete(`/api/v1/files/${id}`);
+      fetchStoredFiles();
+      if (selectedFile?.id === id) setSelectedFile(null);
+    } catch (err) {
+      console.error("Delete failed", err);
+      alert("Delete failed!");
+    }
+  };
+
+  const handleRename = async (e, id) => {
+    e.stopPropagation();
+    if (!newName.trim()) {
+      setRenamingId(null);
+      return;
+    }
+    try {
+      await axios.patch(`/api/v1/files/${id}/rename?newName=${encodeURIComponent(newName)}`);
+      fetchStoredFiles();
+      if (selectedFile?.id === id) {
+        setSelectedFile(prev => ({ ...prev, fileName: newName }));
+      }
+      setRenamingId(null);
+      setNewName("");
+    } catch (err) {
+      console.error("Rename failed", err);
+      alert("Rename failed!");
     }
   };
 
@@ -160,55 +195,104 @@ function App() {
 						</div>
 
 						{/* LIBRARY LIST */}
-						{storedFiles.length > 0 && (
-							<div className="space-y-4">
-								<h2 className="text-2xl font-bold text-[#1A1A1A] px-2">Cloud Library</h2>
+						<div className="space-y-4">
+							<h2 className="text-2xl font-bold text-[#1A1A1A] px-2">Cloud Library</h2>
+							{storedFiles.length === 0 ? (
+								<div className="bg-white/80 border border-[#1A1A1A]/10 rounded-2xl p-4 text-sm text-[#1A1A1A]/60">
+									No files uploaded yet.
+								</div>
+							) : (
 								<div className="grid gap-3">
 									{storedFiles.map((file) => (
-										<div
-											key={file.id}
-											onClick={() => setSelectedFile(file)}
-											className={`group cursor-pointer p-4 rounded-2xl shadow-sm border transition-all flex items-center justify-between
-                        ${
-													selectedFile?.id === file.id
-														? "bg-[#1A1A1A] text-[#EFECE3] border-[#1A1A1A] scale-[1.02] shadow-xl"
-														: "bg-white text-[#1A1A1A] border-transparent hover:border-[#4A70A9]/20 hover:shadow-md"
-												}`}>
-											<div className="flex items-center gap-4">
-												<div
-													className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-														selectedFile?.id === file.id ? "bg-[#EFECE3]/20 text-[#EFECE3]" : "bg-[#EFECE3] text-[#1A1A1A]"
+										<div key={file.id} className="space-y-2">
+											<div
+												onClick={() => setSelectedFile(selectedFile?.id === file.id ? null : file)}
+												className={`group cursor-pointer p-4 rounded-2xl shadow-sm border transition-all flex items-center justify-between
+                          ${
+														selectedFile?.id === file.id
+															? "bg-[#1A1A1A] text-[#EFECE3] border-[#1A1A1A] scale-[1.02] shadow-xl"
+															: "bg-white text-[#1A1A1A] border-transparent hover:border-[#4A70A9]/20 hover:shadow-md"
 													}`}>
-													<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-														<path
-															strokeLinecap="round"
-															strokeLinejoin="round"
-															d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-														/>
-													</svg>
+												<div className="flex items-center gap-4">
+													<div
+														className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+															selectedFile?.id === file.id ? "bg-[#EFECE3]/20 text-[#EFECE3]" : "bg-[#EFECE3] text-[#1A1A1A]"
+														}`}>
+														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+															<path
+																strokeLinecap="round"
+																strokeLinejoin="round"
+																d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+															/>
+														</svg>
+													</div>
+													<div className="flex-1 min-w-0">
+														{renamingId === file.id ? (
+															<input
+																autoFocus
+																className="bg-transparent border-b border-[#EFECE3] outline-none font-bold w-full"
+																value={newName}
+																onChange={(e) => setNewName(e.target.value)}
+																onBlur={(e) => handleRename(e, file.id)}
+																onKeyDown={(e) => e.key === 'Enter' && handleRename(e, file.id)}
+																onClick={(e) => e.stopPropagation()}
+															/>
+														) : (
+															<p className="font-bold truncate">{file.fileName}</p>
+														)}
+														<p className={`text-xs ${selectedFile?.id === file.id ? "text-[#EFECE3]/50" : "text-[#1A1A1A]/50"}`}>
+															{(file.size / 1024).toFixed(1)} KB • {file.blockHashes.length} Blocks
+														</p>
+													</div>
 												</div>
-												<div>
-													<p className="font-bold">{file.fileName}</p>
-													<p className={`text-xs ${selectedFile?.id === file.id ? "text-[#EFECE3]/50" : "text-[#1A1A1A]/50"}`}>
-														{(file.size / 1024).toFixed(1)} KB • {file.blockHashes.length} Blocks
-													</p>
+												<button
+													onClick={(e) => handleDownload(e, file.id, file.fileName)}
+													className={`p-3 rounded-xl transition-colors ${
+														selectedFile?.id === file.id ? "bg-[#EFECE3]/20 hover:bg-[#EFECE3] hover:text-[#1A1A1A]" : "bg-[#EFECE3] hover:bg-[#4A70A9] hover:text-white"
+													}`}
+													title="Download">
+													<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+														<path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M12 9.75V15m0 0 3-3m-3 3-3-3" />
+													</svg>
+												</button>
+											</div>
+
+											{/* OPTIONS BAR */}
+											<div
+												className={`overflow-hidden transition-all duration-300 ease-in-out px-4 
+                        ${selectedFile?.id === file.id ? "max-h-20 opacity-100 mb-4" : "max-h-0 opacity-0"}`}>
+												<div className="flex bg-white/50 backdrop-blur-md border border-[#1A1A1A]/5 rounded-2xl p-2 gap-2 shadow-inner">
+													<button
+														onClick={(e) => {
+															e.stopPropagation();
+															setRenamingId(file.id);
+															setNewName(file.fileName);
+														}}
+														className="flex-1 py-2 px-4 rounded-xl text-xs font-bold uppercase tracking-widest text-[#1A1A1A]/60 hover:bg-[#1A1A1A] hover:text-[#EFECE3] transition-all flex items-center justify-center gap-2">
+														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+															<path
+																strokeLinecap="round"
+																strokeLinejoin="round"
+																d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+															/>
+														</svg>
+														Rename
+													</button>
+													<button
+														onClick={(e) => handleDelete(e, file.id)}
+														className="flex-1 py-2 px-4 rounded-xl text-xs font-bold uppercase tracking-widest text-red-500/80 hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
+														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+															<path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.244 2.244 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+														</svg>
+														Delete
+													</button>
 												</div>
 											</div>
-											<button
-												onClick={(e) => handleDownload(e, file.id, file.fileName)}
-												className={`p-3 rounded-xl transition-colors ${
-													selectedFile?.id === file.id ? "bg-[#EFECE3]/20 hover:bg-[#EFECE3] hover:text-[#1A1A1A]" : "bg-[#EFECE3] hover:bg-[#4A70A9] hover:text-white"
-												}`}
-												title="Download">
-												<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-													<path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M12 9.75V15m0 0 3-3m-3 3-3-3" />
-												</svg>
-											</button>
 										</div>
 									))}
 								</div>
-							</div>
-						)}
+							)}
+						</div>
 					</div>
 
 					{/* RIGHT COLUMN: INSPECTOR */}
@@ -243,7 +327,7 @@ function App() {
 								</div>
 							</div>
 						) : (
-							<div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-30 border-2 border-dashed border-[#1A1A1A]/20 rounded-[2rem]">
+							<div className="h-full flex flex-col items-center justify-center text-center p-12 border-2 border-dashed border-[#1A1A1A]/20 rounded-[2rem] bg-white/40 text-[#1A1A1A]/70">
 								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-16 h-16 mb-4">
 									<path
 										strokeLinecap="round"
