@@ -32,10 +32,17 @@ function App() {
   const [newName, setNewName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('home');
+  const [folders, setFolders] = useState([]);
+  const [currentFolderId, setCurrentFolderId] = useState(null);
+  const [folderBreadcrumbs, setFolderBreadcrumbs] = useState([]);
+  const [dnaFile, setDnaFile] = useState(null);
+  const [menuOpenForFolder, setMenuOpenForFolder] = useState(null);
+  const [addFilesModalFolder, setAddFilesModalFolder] = useState(null);
 
   useEffect(() => {
     fetchStoredFiles();
-  }, []);
+    fetchFolders(currentFolderId);
+  }, [currentFolderId]);
 
   const activeFiles = useMemo(() => storedFiles.filter((file) => !isTrashed(file)), [storedFiles]);
   const trashedFiles = useMemo(() => storedFiles.filter((file) => isTrashed(file)), [storedFiles]);
@@ -54,14 +61,13 @@ function App() {
   const filteredFiles = storedFiles.filter((file) => {
     const matchesSearch = file.fileName.toLowerCase().includes(searchTerm.toLowerCase());
     const trashed = isTrashed(file);
+    const inCurrentFolder = file.folderId === currentFolderId || (!file.folderId && !currentFolderId);
 
     if (activeTab === 'trash') return matchesSearch && trashed;
-    if (activeTab === 'folders') return matchesSearch && !trashed;
+    if (activeTab === 'folders') return matchesSearch && !trashed && inCurrentFolder;
     return matchesSearch && !trashed;
   });
 
-  const selectedHashes = getBlockHashes(selectedFile);
-  const selectedCategory = selectedFile ? getCategory(selectedFile.fileName) : 'Other';
   const selectedFileStillVisible = selectedFile && filteredFiles.some((file) => file.id === selectedFile.id);
 
   const fetchStoredFiles = async () => {
@@ -70,6 +76,16 @@ function App() {
       setStoredFiles(res.data);
     } catch (err) {
       console.error('Failed to fetch library', err);
+    }
+  };
+
+  const fetchFolders = async (parentId = null) => {
+    try {
+      const url = parentId ? `/api/v1/files/folders?parentId=${parentId}` : '/api/v1/files/folders';
+      const res = await axios.get(url);
+      setFolders(res.data);
+    } catch (err) {
+      console.error('Failed to fetch folders', err);
     }
   };
 
@@ -185,6 +201,9 @@ function App() {
       for (const file of files) {
         const formData = new FormData();
         formData.append('file', file);
+        if (currentFolderId && activeTab === 'folders') {
+          formData.append('folderId', currentFolderId);
+        }
         await axios.post('/api/v1/files/upload', formData, {
           onUploadProgress: (progressEvent) => {
             const fileProgress = (progressEvent.loaded / progressEvent.total) * 100;
@@ -207,6 +226,68 @@ function App() {
     }
   };
 
+  const handleCreateFolder = async () => {
+    const name = window.prompt('Enter folder name:');
+    if (!name) return;
+    try {
+      const url = currentFolderId
+        ? `/api/v1/files/folders?name=${encodeURIComponent(name)}&parentId=${currentFolderId}`
+        : `/api/v1/files/folders?name=${encodeURIComponent(name)}`;
+      await axios.post(url);
+      fetchFolders(currentFolderId);
+    } catch (err) {
+      console.error('Failed to create folder', err);
+      alert('Failed to create folder.');
+    }
+  };
+
+  const handleDeleteFolder = async (id) => {
+    if (!window.confirm('Delete this folder? This will delete all contents inside.')) return;
+    try {
+      await axios.delete(`/api/v1/files/folders/${id}`);
+      fetchFolders(currentFolderId);
+      fetchStoredFiles();
+    } catch (err) {
+      console.error('Failed to delete folder', err);
+      alert('Failed to delete folder.');
+    }
+  };
+
+  const handleRenameFolder = async (folder) => {
+    const newName = window.prompt('Enter new folder name:', folder.name);
+    if (!newName || newName === folder.name) return;
+    try {
+      await axios.patch(`/api/v1/files/folders/${folder.id}/rename?newName=${encodeURIComponent(newName)}`);
+      fetchFolders(currentFolderId);
+    } catch (err) {
+      console.error('Failed to rename folder', err);
+      alert('Failed to rename folder.');
+    }
+    setMenuOpenForFolder(null);
+  };
+
+  const openFolder = (folder) => {
+    setCurrentFolderId(folder.id);
+    setFolderBreadcrumbs([...folderBreadcrumbs, folder]);
+  };
+
+  const navigateToBreadcrumb = (index) => {
+    if (index === -1) {
+      setCurrentFolderId(null);
+      setFolderBreadcrumbs([]);
+    } else {
+      const targetFolder = folderBreadcrumbs[index];
+      setCurrentFolderId(targetFolder.id);
+      setFolderBreadcrumbs(folderBreadcrumbs.slice(0, index + 1));
+    }
+  };
+
+  const handleGoBack = () => {
+    if (folderBreadcrumbs.length === 0) return;
+    const parentIndex = folderBreadcrumbs.length - 2;
+    navigateToBreadcrumb(parentIndex);
+  };
+
   return (
     <main className="app-shell">
       <section className="topbar">
@@ -214,11 +295,7 @@ function App() {
           <button className="round-control" type="button" aria-label="Menu">
             <Icon name="menu" />
           </button>
-          <div className="brand-badge">B</div>
-          <div>
-            <div className="brand-mark">BitStore</div>
-            <p className="brand-subtitle">Object Storage</p>
-          </div>
+          <div className="orbitron-regular select-none pl-6">BITSTORE</div>
         </div>
 
         <div className="topbar-actions">
@@ -227,7 +304,7 @@ function App() {
             <span>Add objects</span>
           </button>
           <div className="user-chip" aria-label="Storage health">
-            <span className="avatar">BS</span>
+            <span className="avatar">HK</span>
             <div>
               <strong>{activeFiles.length} active files</strong>
               <span>{formatBytes(activeTotalSize)} stored</span>
@@ -278,30 +355,118 @@ function App() {
         </aside>
 
         <section className="main-column">
-          <StorageOverview
-            activePercentUsed={activePercentUsed}
-            activeTotalSize={activeTotalSize}
-            blockCount={blockCount}
-            uniqueBlockCount={uniqueBlockCount}
-            categorySizes={categorySizes}
-          />
+          <div className="top-row">
+            {activeTab !== 'folders' && (
+              <StorageOverview
+                activePercentUsed={activePercentUsed}
+                activeTotalSize={activeTotalSize}
+                blockCount={blockCount}
+                uniqueBlockCount={uniqueBlockCount}
+                categorySizes={categorySizes}
+              />
+            )}
+            <UploadPanel
+              dragActive={dragActive}
+              files={files}
+              uploading={uploading}
+              progress={progress}
+              status={status}
+              onDrag={handleDrag}
+              onDrop={handleDrop}
+              onChange={handleChange}
+              onClear={() => setFiles([])}
+              onUpload={uploadFiles}
+            />
+          </div>
 
-          <section className="library-section">
+          <section className="library-section montserrat-regular">
             <div className="section-heading">
               <div>
                 <p className="eyebrow">{activeTab === 'trash' ? 'Deleted files' : 'Cloud library'}</p>
-                <h2>{activeTab === 'folders' ? 'Folder index' : activeTab === 'trash' ? 'Recover or remove' : 'All files'}</h2>
+                <h2>{activeTab === 'folders' ? (currentFolderId ? 'Folder contents' : 'Folders') : activeTab === 'trash' ? 'Recover or remove' : 'All files'}</h2>
               </div>
-              <span className="file-count">{filteredFiles.length} items</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {activeTab === 'folders' && !currentFolderId && (
+                  <button
+                    className="primary-button new-folder-btn"
+                    onClick={handleCreateFolder}
+                    type="button"
+                  >
+                    <Icon name="plus" /> New Folder
+                  </button>
+                )}
+                <span className="file-count">{activeTab === 'folders' && !currentFolderId ? folders.length : filteredFiles.length} items</span>
+              </div>
             </div>
 
-            {activeTab === 'folders' ? <FolderStrip files={activeFiles} /> : null}
+            {activeTab === 'folders' && (
+              <div className="folder-navigation" style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {currentFolderId !== null && (
+                  <button
+                    className="icon-button back-btn"
+                    onClick={handleGoBack}
+                    type="button"
+                    title="Go back"
+                    aria-label="Go back"
+                  >
+                    <Icon name="back" />
+                  </button>
+                )}
+                <div className="breadcrumbs" style={{ display: 'flex', gap: '8px', alignItems: 'center', fontWeight: '850', fontSize: '0.9rem' }}>
+                  <span style={{ cursor: 'pointer', color: currentFolderId === null ? 'var(--ink)' : 'var(--muted)' }} onClick={() => navigateToBreadcrumb(-1)}>Root</span>
+                  {folderBreadcrumbs.map((crumb, idx) => (
+                    <span key={crumb.id} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{ color: 'var(--muted)' }}>/</span>
+                      <span style={{ cursor: 'pointer', color: idx === folderBreadcrumbs.length - 1 ? 'var(--ink)' : 'var(--muted)' }} onClick={() => navigateToBreadcrumb(idx)}>{crumb.name}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
-            {filteredFiles.length === 0 ? (
-              <EmptyState activeTab={activeTab} hasFiles={storedFiles.length > 0} />
+            {filteredFiles.length === 0 && folders.length === 0 ? (
+              activeTab === 'folders' && !currentFolderId ? (
+                <div className="empty-state">
+                  <Icon name="folder" />
+                  <p>No folders yet.</p>
+                  <button className="primary-button" style={{ marginTop: '16px' }} onClick={handleCreateFolder}>Create folder</button>
+                </div>
+              ) : (
+                <EmptyState activeTab={activeTab} hasFiles={storedFiles.length > 0} />
+              )
             ) : (
               <div className="file-list">
-                {filteredFiles.map((file) => {
+                {activeTab === 'folders' && folders.map((folder) => (
+                  <article className="file-row" key={`folder-${folder.id}`} onClick={() => openFolder(folder)} style={{ cursor: 'pointer', position: 'relative' }}>
+                    <div className="file-primary">
+                      <div className="file-icon" style={{ '--accent': 'var(--muted)' }}>
+                        <Icon name="folder" />
+                      </div>
+                      <div className="file-text">
+                        <h3>{folder.name}</h3>
+                        <p>Folder</p>
+                      </div>
+                    </div>
+                    <div className="file-actions">
+                      <IconButton
+                        label="More options"
+                        icon="more-vertical"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuOpenForFolder(menuOpenForFolder === folder.id ? null : folder.id);
+                        }}
+                      />
+                      {menuOpenForFolder === folder.id && (
+                        <div className="context-menu" style={{ position: 'absolute', right: '40px', top: '40px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '12px', padding: '8px', zIndex: 10, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
+                          <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setAddFilesModalFolder(folder); setMenuOpenForFolder(null); }}>Add files</button>
+                          <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); handleRenameFolder(folder); }}>Rename</button>
+                          <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--coral)' }} onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); setMenuOpenForFolder(null); }}>Delete folder</button>
+                        </div>
+                      )}
+                    </div>
+                  </article>
+                ))}
+                {(activeTab !== 'folders' || currentFolderId !== null) && filteredFiles.map((file) => {
                   const isSelected = selectedFileStillVisible && selectedFile?.id === file.id;
                   return (
                     <FileRow
@@ -327,6 +492,10 @@ function App() {
                       onTrash={handleTrash}
                       onRestore={handleRestore}
                       onDelete={handleDelete}
+                      onViewDna={(e) => {
+                        e.stopPropagation();
+                        setDnaFile(file);
+                      }}
                     />
                   );
                 })}
@@ -334,33 +503,28 @@ function App() {
             )}
           </section>
         </section>
-
-        <aside className="right-rail">
-          <UploadPanel
-            dragActive={dragActive}
-            files={files}
-            uploading={uploading}
-            progress={progress}
-            status={status}
-            onDrag={handleDrag}
-            onDrop={handleDrop}
-            onChange={handleChange}
-            onClear={() => setFiles([])}
-            onUpload={uploadFiles}
-          />
-
-          <FileDnaPanel
-            selectedFile={selectedFileStillVisible ? selectedFile : null}
-            selectedHashes={selectedFileStillVisible ? selectedHashes : []}
-            selectedCategory={selectedCategory}
-          />
-        </aside>
       </section>
+
+      {dnaFile && (
+        <FileDnaModal
+          file={dnaFile}
+          onClose={() => setDnaFile(null)}
+        />
+      )}
+
+      {addFilesModalFolder && (
+        <AddFilesModal
+          folder={addFilesModalFolder}
+          storedFiles={storedFiles}
+          onClose={() => setAddFilesModalFolder(null)}
+          onRefresh={() => { fetchStoredFiles(); fetchFolders(currentFolderId); }}
+        />
+      )}
     </main>
   );
 }
 
-function StorageOverview({ activePercentUsed, activeTotalSize, blockCount, uniqueBlockCount, categorySizes }) {
+function StorageOverview({ activePercentUsed, activeTotalSize, categorySizes }) {
   const circumference = 2 * Math.PI * 42;
   const usedOffset = circumference - (circumference * activePercentUsed) / 100;
   const segments = Object.entries(categories).map(([key, category]) => {
@@ -369,65 +533,59 @@ function StorageOverview({ activePercentUsed, activeTotalSize, blockCount, uniqu
   });
 
   return (
-    <section className="storage-widgets">
-      <div className="storage-meter-card">
-        <div className="usage-ring-container">
-          <div className="usage-ring" aria-label={`${activePercentUsed.toFixed(1)} percent used`}>
-            <svg viewBox="0 0 100 100" role="img">
-              <circle cx="50" cy="50" r="42" className="ring-track" />
-              {(() => {
-                let currentOffset = 0;
-                return segments.map((seg) => {
-                  if (seg.size === 0 || !activeTotalSize) return null;
-                  const segmentPercentage = seg.size / activeTotalSize;
-                  const strokeLength = segmentPercentage * circumference;
-                  const gap = segments.filter(s => s.size > 0).length > 1 && strokeLength > 4 ? 4 : 0;
-                  const drawLength = Math.max(strokeLength - gap, 0.1);
-                  const dasharray = `${drawLength} ${circumference - drawLength}`;
-                  const dashoffset = -currentOffset;
-                  currentOffset += strokeLength;
-                  return (
-                    <circle
-                      key={seg.key}
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      className="ring-segment"
-                      stroke={seg.color}
-                      strokeLinecap="round"
-                      strokeDasharray={dasharray}
-                      strokeDashoffset={dashoffset}
-                      title={`${seg.label}: ${formatBytes(seg.size)}`}
-                    />
-                  );
-                });
-              })()}
-            </svg>
-            <div className="usage-center">
-              <strong>{activePercentUsed.toFixed(1)}%</strong>
-              <span>Used</span>
-            </div>
+    <div className="storage-meter-card">
+      <div className="usage-ring-container">
+        <div className="usage-ring" aria-label={`${activePercentUsed.toFixed(1)} percent used`}>
+          <svg viewBox="0 0 100 100" role="img">
+            <circle cx="50" cy="50" r="42" className="ring-track" />
+            {(() => {
+              let currentOffset = 0;
+              return segments.map((seg) => {
+                if (seg.size === 0 || !activeTotalSize) return null;
+                const segmentPercentage = seg.size / activeTotalSize;
+                const strokeLength = segmentPercentage * circumference;
+                const gap = segments.filter(s => s.size > 0).length > 1 && strokeLength > 4 ? 4 : 0;
+                const drawLength = Math.max(strokeLength - gap, 0.1);
+                const dasharray = `${drawLength} ${circumference - drawLength}`;
+                const dashoffset = -currentOffset;
+                currentOffset += strokeLength;
+                return (
+                  <circle
+                    key={seg.key}
+                    cx="50"
+                    cy="50"
+                    r="42"
+                    className="ring-segment"
+                    stroke={seg.color}
+                    strokeLinecap="round"
+                    strokeDasharray={dasharray}
+                    strokeDashoffset={dashoffset}
+                    title={`${seg.label}: ${formatBytes(seg.size)}`}
+                  />
+                );
+              });
+            })()}
+          </svg>
+          <div className="usage-center">
+            <strong>{activePercentUsed.toFixed(1)}%</strong>
+            <span>Used</span>
           </div>
         </div>
-        <div className="storage-details">
-          <h2>{formatBytes(activeTotalSize)} <span>/ 5 GB</span></h2>
-          <p>Total storage utilized</p>
-          <div className="legend-row">
-            {segments.filter((segment) => segment.key !== 'Other' || segment.size > 0).map((segment) => (
-              <span key={segment.key}>
-                <i style={{ backgroundColor: segment.color }} />
-                {segment.label}
-              </span>
-            ))}
-          </div>
+      </div>
+      <div className="storage-details">
+        <h2>{formatBytes(activeTotalSize)} <span>/ 5 GB</span></h2>
+        <p>Total storage utilized</p>
+        <div className="legend-row">
+          {segments.filter((segment) => segment.key !== 'Other' || segment.size > 0).map((segment) => (
+            <span key={segment.key}>
+              <i style={{ backgroundColor: segment.color }} />
+              {segment.label}
+            </span>
+          ))}
         </div>
       </div>
 
-      <div className="metrics-card">
-        <Metric label="Blocks Saved" value={blockCount - uniqueBlockCount} />
-        <Metric label="Unique Blocks" value={uniqueBlockCount} />
-      </div>
-    </section>
+    </div >
   );
 }
 
@@ -480,6 +638,7 @@ function FileRow({
   onTrash,
   onRestore,
   onDelete,
+  onViewDna,
 }) {
   const category = getCategory(file.fileName);
   const hashes = getBlockHashes(file);
@@ -519,6 +678,7 @@ function FileRow({
       </div>
 
       <div className="file-actions">
+        <IconButton label="View DNA" icon="eye" onClick={onViewDna} />
         <IconButton label="Download" icon="download" onClick={(e) => onDownload(e, file.id, file.fileName)} />
         {activeTab === 'trash' ? (
           <>
@@ -539,13 +699,6 @@ function FileRow({
 function UploadPanel({ dragActive, files, uploading, progress, status, onDrag, onDrop, onChange, onClear, onUpload }) {
   return (
     <section className="upload-panel">
-      <div className="section-heading compact">
-        <div>
-          <p className="eyebrow">Upload</p>
-          <h2>Add objects</h2>
-        </div>
-      </div>
-
       <form
         className={`drop-zone ${dragActive ? 'is-active' : ''}`}
         onDragEnter={onDrag}
@@ -596,51 +749,39 @@ function UploadPanel({ dragActive, files, uploading, progress, status, onDrag, o
   );
 }
 
-function FileDnaPanel({ selectedFile, selectedHashes, selectedCategory }) {
-  if (!selectedFile) {
-    return (
-      <section className="dna-panel empty-dna">
-        <div className="dna-visual" aria-hidden="true">
-          {Array.from({ length: 24 }).map((_, index) => (
-            <span key={index} style={{ animationDelay: `${index * 45}ms` }} />
-          ))}
-        </div>
-        <p className="eyebrow">File DNA</p>
-        <h2>Select a file</h2>
-        <p>Inspect the hashed blocks that make every object portable, verifiable, and de-duplicated.</p>
-      </section>
-    );
-  }
+function FileDnaModal({ file, onClose }) {
+  const hashes = getBlockHashes(file);
+  const category = getCategory(file.fileName);
 
   return (
-    <section className="dna-panel">
-      <div className="section-heading compact">
-        <div>
-          <p className="eyebrow">File DNA</p>
-          <h2>{selectedFile.fileName}</h2>
-        </div>
-        <span className="category-pill" style={{ '--accent': categories[selectedCategory].color }}>
-          {categories[selectedCategory].label}
-        </span>
-      </div>
-
-      <div className="dna-summary">
-        <Metric label="Size" value={formatBytes(selectedFile.size)} />
-        <Metric label="Chunks" value={selectedHashes.length} />
-      </div>
-
-      <div className="hash-list">
-        {selectedHashes.map((hash, index) => (
-          <div className="hash-card" key={`${hash}-${index}`}>
-            <div className="hash-head">
-              <b>{index + 1}</b>
-              <span>{CHUNK_SIZE_KB} KB chunk</span>
-            </div>
-            <code>{hash}</code>
+    <div className="modal-backdrop" onClick={onClose}>
+      <dialog open className="dna-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="section-heading compact" style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div>
+            <p className="eyebrow">File DNA</p>
+            <h2>{file.fileName}</h2>
           </div>
-        ))}
-      </div>
-    </section>
+          <button className="icon-button" onClick={onClose} style={{ alignSelf: 'flex-start' }}>✕</button>
+        </div>
+
+        <div className="dna-summary">
+          <Metric label="Size" value={formatBytes(file.size)} />
+          <Metric label="Chunks" value={hashes.length} />
+        </div>
+
+        <div className="hash-list">
+          {hashes.map((hash, index) => (
+            <div className="hash-card" key={`${hash}-${index}`}>
+              <div className="hash-head">
+                <b>{index + 1}</b>
+                <span>{CHUNK_SIZE_KB} KB chunk</span>
+              </div>
+              <code>{hash}</code>
+            </div>
+          ))}
+        </div>
+      </dialog>
+    </div>
   );
 }
 
@@ -671,14 +812,17 @@ function IconButton({ label, icon, tone = 'neutral', onClick }) {
 function Icon({ name }) {
   const icons = {
     archive: 'M4 7h16M6 7v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7M9 11h6',
+    back: 'M19 12H5m7 7-7-7 7-7',
     download: 'M12 3v11m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2',
     edit: 'M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4',
+    eye: 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
     file: 'M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5ZM14 2v5h5',
     folder: 'M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z',
     grid: 'M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z',
     image: 'M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14H4V5Zm3 10 3.5-4 3 3.5 2-2.5L20 17M8 8h.01',
     menu: 'M5 8h14M5 16h14',
     media: 'M8 5v14l11-7L8 5Z',
+    'more-vertical': 'M12 12m-1 0a1 1 0 1 0 2 0 1 1 0 1 0-2 0M12 5m-1 0a1 1 0 1 0 2 0 1 1 0 1 0-2 0M12 19m-1 0a1 1 0 1 0 2 0 1 1 0 1 0-2 0',
     plus: 'M12 5v14M5 12h14',
     restore: 'M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5',
     search: 'M10.5 18a7.5 7.5 0 1 1 5.3-2.2L21 21',
@@ -730,6 +874,77 @@ function formatBytes(bytes = 0) {
 
 function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value));
+}
+
+function AddFilesModal({ folder, storedFiles, onClose, onRefresh }) {
+  const [selectedFiles, setSelectedFiles] = useState(new Set());
+  const [saving, setSaving] = useState(false);
+
+  // Files not currently in this folder and not trashed
+  const availableFiles = storedFiles.filter(f => !isTrashed(f) && f.folderId !== folder.id);
+
+  const handleToggle = (id) => {
+    const next = new Set(selectedFiles);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedFiles(next);
+  };
+
+  const handleAddFiles = async () => {
+    setSaving(true);
+    try {
+      for (const fileId of selectedFiles) {
+        await axios.patch(`/api/v1/files/${fileId}/move?folderId=${folder.id}`);
+      }
+      onRefresh();
+      onClose();
+    } catch (err) {
+      console.error('Failed to add files', err);
+      alert('Failed to add some files.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <dialog open className="dna-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="section-heading compact" style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div>
+            <p className="eyebrow">Add files to</p>
+            <h2>{folder.name}</h2>
+          </div>
+          <button className="icon-button" onClick={onClose} style={{ alignSelf: 'flex-start' }}>✕</button>
+        </div>
+
+        {availableFiles.length === 0 ? (
+          <p style={{ margin: '20px 0', textAlign: 'center', color: 'var(--muted)' }}>No available files to add.</p>
+        ) : (
+          <div className="add-files-list" style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '20px', border: '1px solid var(--line)', borderRadius: '12px', padding: '8px' }}>
+            {availableFiles.map(file => (
+              <label key={file.id} style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '8px', cursor: 'pointer', borderBottom: '1px solid var(--line)' }}>
+                <input
+                  type="checkbox"
+                  checked={selectedFiles.has(file.id)}
+                  onChange={() => handleToggle(file.id)}
+                  style={{ width: '18px', height: '18px', accentColor: 'var(--coral)' }}
+                />
+                <div style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {file.fileName}
+                </div>
+              </label>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+          <button style={{ padding: '10px 20px', borderRadius: '999px', border: '1px solid var(--line)', background: 'transparent', cursor: 'pointer', fontWeight: 600 }} onClick={onClose}>Cancel</button>
+          <button className="primary-button" onClick={handleAddFiles} disabled={saving || selectedFiles.size === 0} style={{ padding: '0 20px' }}>
+            {saving ? 'Adding...' : `Add ${selectedFiles.size} files`}
+          </button>
+        </div>
+      </dialog>
+    </div>
+  );
 }
 
 export default App;

@@ -3,6 +3,9 @@ package com.bitstore.metadataservice.service;
 import com.bitstore.metadataservice.dto.FileMetadataResponse;
 import com.bitstore.metadataservice.model.FileMetadata;
 import com.bitstore.metadataservice.repository.FileMetadataRepository;
+import com.bitstore.metadataservice.repository.FolderRepository;
+import com.bitstore.metadataservice.model.Folder;
+import com.bitstore.metadataservice.dto.FolderResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,9 @@ public class FileService {
     private FileMetadataRepository repository;
 
     @Autowired
+    private FolderRepository folderRepository;
+
+    @Autowired
     private RestTemplate restTemplate;
 
     @Value("${block.service.url}")
@@ -30,7 +36,7 @@ public class FileService {
 
     public static final int CHUNK_SIZE = 1024 * 1024; // 1MB
 
-    public void uploadFile(MultipartFile file) throws IOException, NoSuchAlgorithmException {
+    public void uploadFile(MultipartFile file, Long folderId) throws IOException, NoSuchAlgorithmException {
         String fileName = file.getOriginalFilename();
         long fileSize = file.getSize();
         byte[] bytes = file.getBytes();
@@ -53,6 +59,11 @@ public class FileService {
         metadata.setSize(fileSize);
         metadata.setBlockHashes(blockHashes);
         metadata.setCreatedAt(java.time.Instant.now()); // Set the creation timestamp
+        if (folderId != null) {
+            Folder folder = folderRepository.findById(folderId)
+                    .orElseThrow(() -> new RuntimeException("Folder not found"));
+            metadata.setFolder(folder);
+        }
         repository.save(metadata);
     }
 
@@ -75,7 +86,7 @@ public class FileService {
                 metadata.getBlockHashes(),
                 metadata.getCreatedAt(),
                 metadata.isTrashed(),
-                metadata.getFolderPath());
+                metadata.getFolder() != null ? metadata.getFolder().getId() : null);
     }
 
     public byte[] downloadFile(Long id) {
@@ -129,13 +140,60 @@ public class FileService {
         repository.save(metadata);
     }
 
-    public void moveToFolder(Long id, String folderPath) {
+    public void moveToFolder(Long id, Long folderId) {
         FileMetadata metadata = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("File not found"));
-        metadata.setFolderPath(folderPath);
+        if (folderId != null) {
+            Folder folder = folderRepository.findById(folderId)
+                    .orElseThrow(() -> new RuntimeException("Folder not found"));
+            metadata.setFolder(folder);
+        } else {
+            metadata.setFolder(null);
+        }
         repository.save(metadata);
     }
 
+    public FolderResponse createFolder(String name, Long parentId) {
+        Folder folder = new Folder();
+        folder.setName(name);
+        if (parentId != null) {
+            Folder parent = folderRepository.findById(parentId)
+                    .orElseThrow(() -> new RuntimeException("Parent folder not found"));
+            folder.setParentFolder(parent);
+        }
+        folder = folderRepository.save(folder);
+        return mapFolder(folder);
+    }
+
+    public List<FolderResponse> getFolders(Long parentId) {
+        List<Folder> folders;
+        if (parentId == null) {
+            folders = folderRepository.findByParentFolderIsNull();
+        } else {
+            folders = folderRepository.findByParentFolderId(parentId);
+        }
+        return folders.stream().map(this::mapFolder).toList();
+    }
+
+    public void deleteFolder(Long id) {
+        folderRepository.deleteById(id);
+    }
+
+    public FolderResponse mapFolder(Folder folder) {
+        return new FolderResponse(
+                folder.getId(),
+                folder.getName(),
+                folder.getParentFolder() != null ? folder.getParentFolder().getId() : null,
+                folder.getCreatedAt()
+        );
+    }
+
+    public void renameFolder(Long id, String newName) {
+        Folder folder = folderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Folder not found"));
+        folder.setName(newName);
+        folderRepository.save(folder);
+    }
     private String calculateHash(byte[] bytes) throws NoSuchAlgorithmException {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(bytes);

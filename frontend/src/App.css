@@ -1,12 +1,12 @@
 :root {
   color-scheme: light;
-  --surface: #f7f7f7;
-  --panel: #ffffff;
-  --panel-soft: #f2f2f2;
+  --surface: #ffffff;
+  --panel: #f5f5f5;
+  --panel-soft: #eaeaea;
   --ink: #050505;
   --muted: #8c8c8c;
   --quiet: #b9b9b9;
-  --line: #e8e8e8;
+  --line: #e0e0e0;
   --coral: #e75f45;
   --coral-soft: #f7ddd7;
   --charcoal: #111111;
@@ -14,8 +14,8 @@
   --blue: #6e8fd7;
   --amber: #dda84e;
   --violet: #8d76d6;
-  --shadow-soft: 0 22px 70px rgba(18, 18, 18, 0.07);
-  --shadow-lift: 0 16px 36px rgba(18, 18, 18, 0.08);
+  --shadow-soft: 0 22px 70px rgba(18, 18, 18, 0.06);
+  --shadow-lift: 0 16px 36px rgba(18, 18, 18, 0.09);
 }
 
 * {
@@ -107,7 +107,7 @@ svg {
   border-radius: 50%;
   color: white;
   background: var(--ink);
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .brand-badge {
@@ -141,7 +141,7 @@ svg {
 }
 
 .user-chip strong,
-.user-chip > div > span {
+.user-chip>div>span {
   display: block;
 }
 
@@ -150,7 +150,7 @@ svg {
   line-height: 1.1;
 }
 
-.user-chip > div > span {
+.user-chip>div>span {
   margin-top: 3px;
   color: var(--muted);
   font-size: 0.85rem;
@@ -187,7 +187,7 @@ svg {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr) 390px;
+  grid-template-columns: 86px minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
 }
@@ -221,7 +221,7 @@ svg {
   margin: 0 0 8px;
   color: var(--muted);
   font-size: 0.72rem;
-  font-weight: 850;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
@@ -288,7 +288,7 @@ svg {
 .mini-stat span {
   color: var(--muted);
   font-size: 0.64rem;
-  font-weight: 850;
+  font-weight: 700;
   text-transform: uppercase;
   writing-mode: vertical-rl;
 }
@@ -302,24 +302,29 @@ svg {
   display: none;
 }
 
-.main-column,
-.right-rail {
+.main-column {
   display: grid;
   min-width: 0;
   gap: 16px;
+  align-content: start;
 }
 
-.right-rail {
-  position: sticky;
-  top: 28px;
-  align-self: start;
-}
-
-.storage-widgets {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
+.top-row {
+  display: flex;
   gap: 16px;
-  margin-bottom: 16px;
+  align-items: stretch;
+}
+
+.top-row>.storage-meter-card {
+  flex: 1 1 auto;
+}
+
+.top-row>.upload-panel {
+  flex: 0 0 340px;
+}
+
+.top-row>.upload-panel:only-child {
+  flex: 1;
 }
 
 .storage-meter-card {
@@ -331,6 +336,7 @@ svg {
   border-radius: 28px;
   background: var(--panel);
   box-shadow: var(--shadow-soft);
+  min-height: 0;
 }
 
 .usage-ring-container {
@@ -403,14 +409,14 @@ svg {
 .storage-details h2 {
   margin: 0;
   font-size: 1.8rem;
-  font-weight: 850;
+  font-weight: 800;
   color: var(--ink);
 }
 
 .storage-details h2 span {
   font-size: 1.2rem;
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .storage-details p {
@@ -447,7 +453,7 @@ svg {
   gap: 12px;
 }
 
-.metrics-card > div,
+.metrics-card>div,
 .dna-summary div {
   padding: 16px;
   border: 1px solid var(--line);
@@ -475,9 +481,16 @@ svg {
 }
 
 .library-section,
-.upload-panel,
 .dna-panel {
   padding: 24px;
+}
+
+.upload-panel {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .section-heading {
@@ -493,7 +506,7 @@ svg {
 .section-heading h2,
 .dna-panel h2 {
   font-size: 1.28rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .file-count,
@@ -525,7 +538,7 @@ svg {
   background: var(--surface);
   color: var(--muted);
   font-size: 0.84rem;
-  font-weight: 800;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -554,7 +567,7 @@ svg {
 .file-row:hover,
 .file-row.is-selected {
   border-color: var(--line);
-  background: white;
+  background: var(--surface);
   box-shadow: var(--shadow-lift);
   transform: translateY(-1px);
 }
@@ -577,7 +590,7 @@ svg {
   height: 46px;
   border-radius: 50%;
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 15%, white);
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
 }
 
 .file-row.is-selected .file-icon {
@@ -594,7 +607,7 @@ svg {
   overflow: hidden;
   color: inherit;
   font-size: 1rem;
-  font-weight: 850;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -604,7 +617,7 @@ svg {
   overflow: hidden;
   color: var(--muted);
   font-size: 0.83rem;
-  font-weight: 700;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -625,7 +638,7 @@ svg {
   outline: 0;
   color: inherit;
   background: transparent;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .file-actions {
@@ -641,7 +654,7 @@ svg {
   border: 0;
   border-radius: 50%;
   color: var(--muted);
-  background: white;
+  background: var(--surface);
   transition: 160ms ease;
 }
 
@@ -663,10 +676,10 @@ svg {
   position: relative;
   display: grid;
   place-items: center;
-  min-height: 180px;
-  padding: 20px;
-  border: 1.5px dashed #d8d8d8;
-  border-radius: 28px;
+  min-height: 140px;
+  padding: 16px 20px;
+  border: 1.5px dashed #d0d0d0;
+  border-radius: 22px;
   background: var(--surface);
   text-align: center;
   transition: 180ms ease;
@@ -684,7 +697,7 @@ svg {
 .drop-zone.is-active,
 .drop-zone:hover {
   border-color: var(--coral);
-  background: #fff5f2;
+  background: color-mix(in srgb, var(--coral) 5%, var(--surface));
 }
 
 .upload-symbol {
@@ -702,7 +715,7 @@ svg {
 .drop-zone strong {
   display: block;
   font-size: 1.05rem;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .drop-zone span {
@@ -710,7 +723,7 @@ svg {
   margin-top: 4px;
   color: var(--muted);
   font-size: 0.86rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .progress-group,
@@ -729,7 +742,7 @@ svg {
 .queue-header {
   color: var(--muted);
   font-size: 0.8rem;
-  font-weight: 850;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -758,7 +771,7 @@ svg {
   border: 0;
   color: var(--coral);
   background: transparent;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .queue-item {
@@ -766,7 +779,7 @@ svg {
   border-radius: 999px;
   background: var(--surface);
   font-size: 0.85rem;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .queue-item span {
@@ -787,8 +800,17 @@ svg {
   border-radius: 999px;
   color: white;
   background: var(--coral);
-  font-weight: 850;
+  font-weight: 700;
   transition: 160ms ease;
+}
+
+.new-folder-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 0.82rem;
 }
 
 .primary-button:hover:not(:disabled) {
@@ -809,20 +831,39 @@ svg {
   height: 52px;
 }
 
-.dna-panel {
-  max-height: calc(100vh - 342px);
-  overflow: hidden;
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
 
-.dna-panel h2 {
-  max-width: 230px;
+.dna-modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 36px;
+  padding: 38px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dna-modal h2 {
+  max-width: 300px;
   overflow-wrap: anywhere;
 }
 
 .category-pill {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, white);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
 
 .dna-summary {
@@ -868,7 +909,7 @@ svg {
   padding: 13px;
   border: 1px solid var(--line);
   border-radius: 22px;
-  background: #fbfbfb;
+  background: var(--surface);
 }
 
 .hash-head {
@@ -890,7 +931,7 @@ svg {
 .hash-head span {
   color: var(--muted);
   font-size: 0.77rem;
-  font-weight: 850;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
@@ -903,38 +944,8 @@ svg {
   overflow-wrap: anywhere;
 }
 
-.empty-dna {
-  display: grid;
-  place-items: start;
-  gap: 8px;
-  min-height: 360px;
-  align-content: center;
-}
-
-.dna-visual {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
-  width: 160px;
-  margin-bottom: 10px;
-}
-
-.dna-visual span {
-  height: 18px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(231, 95, 69, 0.34), rgba(5, 5, 5, 0.12));
-  animation: dnaPulse 2.1s ease-in-out infinite;
-}
-
 .empty-dna h2 {
   font-size: 1.75rem;
-}
-
-.empty-dna p:last-child {
-  max-width: 32ch;
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.55;
 }
 
 .empty-state {
@@ -960,6 +971,7 @@ svg {
 }
 
 @keyframes dnaPulse {
+
   0%,
   100% {
     opacity: 0.48;
@@ -983,18 +995,12 @@ svg {
     justify-content: space-between;
   }
 
-  .workspace-grid {
-    grid-template-columns: 86px minmax(0, 1fr);
+  .top-row {
+    flex-direction: column;
   }
 
-  .right-rail {
-    position: static;
-    grid-column: 1 / -1;
-    grid-template-columns: minmax(280px, 390px) minmax(0, 1fr);
-  }
-
-  .dna-panel {
-    max-height: 580px;
+  .top-row>.upload-panel {
+    flex: unset;
   }
 }
 
@@ -1064,8 +1070,7 @@ svg {
 
   .storage-panel,
   .library-section,
-  .upload-panel,
-  .dna-panel {
+  .upload-panel {
     padding: 18px;
   }
 

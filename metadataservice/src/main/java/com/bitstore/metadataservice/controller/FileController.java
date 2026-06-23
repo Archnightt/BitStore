@@ -1,6 +1,7 @@
 package com.bitstore.metadataservice.controller;
 
 import com.bitstore.metadataservice.dto.FileMetadataResponse;
+import com.bitstore.metadataservice.dto.FolderResponse;
 import com.bitstore.metadataservice.model.FileMetadata;
 import com.bitstore.metadataservice.service.FileService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +23,9 @@ public class FileController {
     private FileService fileService;
 
     @PostMapping("/upload")
-    public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file, @RequestParam(value = "folderId", required = false) Long folderId) {
         try {
-            fileService.uploadFile(file);
+            fileService.uploadFile(file, folderId);
             return ResponseEntity.ok("File uploaded successfully");
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Upload failed: " + e.getMessage());
@@ -86,8 +87,32 @@ public class FileController {
     }
 
     @PatchMapping("/{id}/move")
-    public ResponseEntity<Void> moveFile(@PathVariable Long id, @RequestParam String folderPath) {
-        fileService.moveToFolder(id, folderPath);
+    public ResponseEntity<Void> moveFile(@PathVariable Long id, @RequestParam(required = false) Long folderId) {
+        fileService.moveToFolder(id, folderId);
         return ResponseEntity.ok().build();
+    }
+
+    // --- Folder Endpoints ---
+
+    @PostMapping("/folders")
+    public ResponseEntity<FolderResponse> createFolder(@RequestParam String name, @RequestParam(required = false) Long parentId) {
+        return ResponseEntity.ok(fileService.createFolder(name, parentId));
+    }
+
+    @PatchMapping("/folders/{id}/rename")
+    public ResponseEntity<Void> renameFolder(@PathVariable Long id, @RequestParam String newName) {
+        fileService.renameFolder(id, newName);
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/folders")
+    public ResponseEntity<List<FolderResponse>> getFolders(@RequestParam(required = false) Long parentId) {
+        return ResponseEntity.ok(fileService.getFolders(parentId));
+    }
+
+    @DeleteMapping("/folders/{id}")
+    public ResponseEntity<Void> deleteFolder(@PathVariable Long id) {
+        fileService.deleteFolder(id);
+        return ResponseEntity.noContent().build();
     }
 }

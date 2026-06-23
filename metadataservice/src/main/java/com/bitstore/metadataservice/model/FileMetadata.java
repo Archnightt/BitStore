@@ -30,9 +30,13 @@ public class FileMetadata {
 
     private Instant createdAt;
 
+    @Column(name = "folder_path", nullable = true)
+    private String folderPath;
+
     @Column(nullable = false)
     private boolean isTrashed = false;
 
-    @Column(nullable = false)
-    private String folderPath = "/";
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "folder_id")
+    private Folder folder;
 }
