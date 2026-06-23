@@ -31,6 +31,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleUnhandledException(Exception ex) {
+        ex.printStackTrace();
         return ResponseEntity.status(500).body(Map.of("error", "Unexpected server error", "status", "500"));
     }
 }

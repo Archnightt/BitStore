@@ -18,7 +18,7 @@ public class FileMetadata {
     private Long id;
 
     private String fileName;
-    
+
     private long size;
 
     @ElementCollection
@@ -29,4 +29,10 @@ public class FileMetadata {
     private UserAccount owner;
 
     private Instant createdAt;
+
+    @Column(nullable = false)
+    private boolean isTrashed = false;
+
+    @Column(nullable = false)
+    private String folderPath = "/";
 }

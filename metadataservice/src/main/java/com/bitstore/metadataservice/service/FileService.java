@@ -73,7 +73,9 @@ public class FileService {
                 metadata.getFileName(),
                 metadata.getSize(),
                 metadata.getBlockHashes(),
-                metadata.getCreatedAt());
+                metadata.getCreatedAt(),
+                metadata.isTrashed(),
+                metadata.getFolderPath());
     }
 
     public byte[] downloadFile(Long id) {
@@ -110,6 +112,27 @@ public class FileService {
         FileMetadata metadata = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("File not found"));
         metadata.setFileName(newName);
+        repository.save(metadata);
+    }
+
+    public void moveToTrash(Long id) {
+        FileMetadata metadata = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("File not found"));
+        metadata.setTrashed(true);
+        repository.save(metadata);
+    }
+
+    public void restoreFile(Long id) {
+        FileMetadata metadata = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("File not found"));
+        metadata.setTrashed(false);
+        repository.save(metadata);
+    }
+
+    public void moveToFolder(Long id, String folderPath) {
+        FileMetadata metadata = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("File not found"));
+        metadata.setFolderPath(folderPath);
         repository.save(metadata);
     }
 

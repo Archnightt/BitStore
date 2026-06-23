@@ -4,10 +4,11 @@ import java.time.Instant;
 import java.util.List;
 
 public record FileMetadataResponse(
-        Long id,
-        String fileName,
-        long size,
-        List<String> blockHashes,
-        Instant createdAt
-) {
+                Long id,
+                String fileName,
+                long size,
+                List<String> blockHashes,
+                Instant createdAt,
+                boolean isTrashed,
+                String folderPath) {
 }

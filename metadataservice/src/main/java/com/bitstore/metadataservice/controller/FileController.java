@@ -63,4 +63,31 @@ public class FileController {
         fileService.renameFile(id, newName);
         return ResponseEntity.ok().build();
     }
+
+    @PostMapping("/{id}/trash")
+    public ResponseEntity<Void> moveToTrash(@PathVariable Long id) {
+        fileService.moveToTrash(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/restore")
+    public ResponseEntity<Void> restoreFile(@PathVariable Long id) {
+        fileService.restoreFile(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @DeleteMapping("/trash/empty")
+    public ResponseEntity<Void> emptyTrash() {
+        // Find all trashed files and delete them permanently
+        fileService.getAllFiles().stream()
+                .filter(FileMetadata::isTrashed)
+                .forEach(f -> fileService.deleteFile(f.getId()));
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{id}/move")
+    public ResponseEntity<Void> moveFile(@PathVariable Long id, @RequestParam String folderPath) {
+        fileService.moveToFolder(id, folderPath);
+        return ResponseEntity.ok().build();
+    }
 }
