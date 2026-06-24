@@ -181,14 +181,38 @@ public class FileService {
     }
 
     public FolderResponse mapFolder(Folder folder) {
+        long fileCount = calculateTotalFileCount(folder);
+        long totalSize = calculateTotalSize(folder);
+
         return new FolderResponse(
                 folder.getId(),
                 folder.getName(),
                 folder.getParentFolder() != null ? folder.getParentFolder().getId() : null,
                 folder.getCreatedAt(),
                 folder.getColor(),
-                folder.isStarred()
+                folder.isStarred(),
+                fileCount,
+                totalSize
         );
+    }
+
+    private long calculateTotalFileCount(Folder folder) {
+        long count = repository.countByFolderIdAndIsTrashedFalse(folder.getId());
+        List<Folder> subfolders = folderRepository.findByParentFolderId(folder.getId());
+        for (Folder sub : subfolders) {
+            count += calculateTotalFileCount(sub);
+        }
+        return count;
+    }
+
+    private long calculateTotalSize(Folder folder) {
+        Long size = repository.sumSizeByFolderIdAndIsTrashedFalse(folder.getId());
+        long total = size != null ? size : 0L;
+        List<Folder> subfolders = folderRepository.findByParentFolderId(folder.getId());
+        for (Folder sub : subfolders) {
+            total += calculateTotalSize(sub);
+        }
+        return total;
     }
 
     public void renameFolder(Long id, String newName) {

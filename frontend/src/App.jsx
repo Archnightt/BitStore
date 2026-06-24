@@ -9,10 +9,13 @@ import {
   File,
   Folder,
   LayoutDashboard,
+  Grid,
   Image as ImageIcon,
   Menu,
   Film,
   MoreVertical,
+  Plus,
+  FolderPlus,
   History,
   Search,
   Clock,
@@ -424,10 +427,11 @@ function App() {
                 categorySizes={categorySizes}
               />
             )}
-            <UploadPanel
-              dragActive={dragActive}
-              files={files}
-              uploading={uploading}
+            {activeTab !== 'folders' && (
+              <UploadPanel
+                dragActive={dragActive}
+                files={files}
+                uploading={uploading}
               progress={progress}
               status={status}
               onDrag={handleDrag}
@@ -436,6 +440,7 @@ function App() {
               onClear={() => setFiles([])}
               onUpload={uploadFiles}
             />
+            )}
           </div>
 
           <section className="library-section montserrat-regular">
@@ -451,7 +456,16 @@ function App() {
                     onClick={handleCreateFolder}
                     type="button"
                   >
-                    <Icon name="ArchiveRestore" /> New Folder
+                    <FolderPlus size={18} /> New Folder
+                  </button>
+                )}
+                {activeTab === 'folders' && (
+                  <button
+                    className="primary-button black new-folder-btn"
+                    onClick={() => document.querySelector('.drop-zone input').click()}
+                    type="button"
+                  >
+                    <Upload size={18} /> Upload Files
                   </button>
                 )}
                 <span className="file-count">{activeTab === 'folders' && !currentFolderId ? folders.length : filteredFiles.length} items</span>
@@ -503,7 +517,7 @@ function App() {
                       </div>
                       <div className="file-text">
                         <h3>{folder.name}</h3>
-                        <p>Folder</p>
+                        <p>{folder.fileCount || 0} files • {formatBytes(folder.totalSize || 0)}</p>
                       </div>
                     </div>
                     <div className="file-actions">

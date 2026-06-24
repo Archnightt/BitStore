@@ -8,5 +8,7 @@ public record FolderResponse(
         Long parentFolderId,
         Instant createdAt,
         String color,
-        boolean isStarred) {
+        boolean isStarred,
+        long fileCount,
+        long totalSize) {
 }
