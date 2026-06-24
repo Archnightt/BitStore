@@ -27,5 +27,11 @@ public class Folder {
     @JoinColumn(name = "owner_id")
     private UserAccount owner;
 
+    @Column(name = "color")
+    private String color;
+
+    @Column(name = "is_starred", nullable = false, columnDefinition = "boolean default false")
+    private boolean isStarred = false;
+
     private Instant createdAt = Instant.now();
 }

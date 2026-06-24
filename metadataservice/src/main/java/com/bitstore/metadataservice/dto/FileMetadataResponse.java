@@ -10,5 +10,6 @@ public record FileMetadataResponse(
                 List<String> blockHashes,
                 Instant createdAt,
                 boolean isTrashed,
+                boolean isStarred,
                 Long folderId) {
 }

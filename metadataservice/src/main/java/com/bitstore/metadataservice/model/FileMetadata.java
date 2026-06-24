@@ -31,10 +31,13 @@ public class FileMetadata {
     private Instant createdAt;
 
     @Column(name = "folder_path", nullable = true)
-    private String folderPath;
+    private String folderPath = "/";
 
     @Column(nullable = false)
     private boolean isTrashed = false;
+
+    @Column(name = "is_starred", nullable = false, columnDefinition = "boolean default false")
+    private boolean isStarred = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "folder_id")

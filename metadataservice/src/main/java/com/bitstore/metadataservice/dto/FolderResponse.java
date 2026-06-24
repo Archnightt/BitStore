@@ -6,5 +6,7 @@ public record FolderResponse(
         Long id,
         String name,
         Long parentFolderId,
-        Instant createdAt) {
+        Instant createdAt,
+        String color,
+        boolean isStarred) {
 }

@@ -54,7 +54,7 @@ svg {
   justify-content: space-between;
   gap: 24px;
   min-height: 84px;
-  margin-bottom: clamp(28px, 4vw, 64px);
+  margin-bottom: clamp(16px, 2vw, 32px);
 }
 
 .brand-cluster,
@@ -190,6 +190,11 @@ svg {
   grid-template-columns: 86px minmax(0, 1fr);
   gap: 16px;
   align-items: stretch;
+  transition: grid-template-columns 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.workspace-grid.is-expanded {
+  grid-template-columns: 240px minmax(0, 1fr);
 }
 
 .sidebar-panel,
@@ -217,6 +222,10 @@ svg {
   display: none;
 }
 
+.workspace-grid.is-expanded .sidebar-top {
+  display: block;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: var(--muted);
@@ -236,9 +245,17 @@ svg {
   height: 54px;
   border: 1px solid transparent;
   border-radius: 50%;
-  color: var(--muted);
+  color: #555;
   background: transparent;
-  transition: 180ms ease;
+  transition: 180ms ease, width 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-radius 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.workspace-grid.is-expanded .nav-button {
+  justify-content: flex-start;
+  width: 100%;
+  border-radius: 27px;
+  padding-left: 16px;
 }
 
 .nav-button span {
@@ -247,6 +264,19 @@ svg {
   height: 1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
+  opacity: 0;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.workspace-grid.is-expanded .nav-button span {
+  position: static;
+  width: auto;
+  height: auto;
+  clip: auto;
+  opacity: 1;
+  margin-left: 16px;
+  font-weight: 600;
 }
 
 .nav-button b {
@@ -260,6 +290,12 @@ svg {
   color: white;
   background: var(--coral);
   font-size: 0.68rem;
+  transition: margin 0.3s;
+}
+
+.workspace-grid.is-expanded .nav-button b {
+  position: static;
+  margin: 0 16px 0 auto;
 }
 
 .nav-button:hover,
@@ -283,14 +319,29 @@ svg {
   color: var(--ink);
   background: var(--panel-soft);
   text-align: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.workspace-grid.is-expanded .mini-stat {
+  border-radius: 24px;
+  padding: 16px;
+  min-height: auto;
+  align-content: start;
 }
 
 .mini-stat span {
-  color: var(--muted);
+  color: #555;
   font-size: 0.64rem;
   font-weight: 700;
   text-transform: uppercase;
   writing-mode: vertical-rl;
+  transition: writing-mode 0s;
+}
+
+.workspace-grid.is-expanded .mini-stat span {
+  writing-mode: horizontal-tb;
+  font-size: 0.75rem;
+  margin-bottom: 8px;
 }
 
 .mini-stat strong {
@@ -300,6 +351,14 @@ svg {
 
 .mini-stat p {
   display: none;
+  font-size: 0.75rem;
+  color: #555;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+.workspace-grid.is-expanded .mini-stat p {
+  display: block;
 }
 
 .main-column {
@@ -670,6 +729,15 @@ svg {
 
 .icon-button.danger:hover {
   background: var(--coral);
+}
+
+.icon-button.amber {
+  color: var(--amber);
+}
+
+.icon-button.amber:hover {
+  color: white;
+  background: var(--amber);
 }
 
 .drop-zone {

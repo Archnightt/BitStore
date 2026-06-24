@@ -115,4 +115,22 @@ public class FileController {
         fileService.deleteFolder(id);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{id}/star")
+    public ResponseEntity<Void> toggleFileStar(@PathVariable Long id) {
+        fileService.toggleFileStar(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/folders/{id}/star")
+    public ResponseEntity<Void> toggleFolderStar(@PathVariable Long id) {
+        fileService.toggleFolderStar(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/folders/{id}/color")
+    public ResponseEntity<Void> updateFolderColor(@PathVariable Long id, @RequestParam String color) {
+        fileService.updateFolderColor(id, color);
+        return ResponseEntity.ok().build();
+    }
 }

@@ -86,6 +86,7 @@ public class FileService {
                 metadata.getBlockHashes(),
                 metadata.getCreatedAt(),
                 metadata.isTrashed(),
+                metadata.isStarred(),
                 metadata.getFolder() != null ? metadata.getFolder().getId() : null);
     }
 
@@ -184,7 +185,9 @@ public class FileService {
                 folder.getId(),
                 folder.getName(),
                 folder.getParentFolder() != null ? folder.getParentFolder().getId() : null,
-                folder.getCreatedAt()
+                folder.getCreatedAt(),
+                folder.getColor(),
+                folder.isStarred()
         );
     }
 
@@ -205,5 +208,26 @@ public class FileService {
             hexString.append(hex);
         }
         return hexString.toString();
+    }
+
+    public void toggleFileStar(Long id) {
+        FileMetadata metadata = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("File not found"));
+        metadata.setStarred(!metadata.isStarred());
+        repository.save(metadata);
+    }
+
+    public void toggleFolderStar(Long id) {
+        Folder folder = folderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Folder not found"));
+        folder.setStarred(!folder.isStarred());
+        folderRepository.save(folder);
+    }
+
+    public void updateFolderColor(Long id, String color) {
+        Folder folder = folderRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Folder not found"));
+        folder.setColor(color);
+        folderRepository.save(folder);
     }
 }

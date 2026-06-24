@@ -1,5 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
+import {
+  Archive,
+  ArrowLeft,
+  Download,
+  Pencil,
+  Eye,
+  File,
+  Folder,
+  LayoutDashboard,
+  Image as ImageIcon,
+  Menu,
+  Film,
+  MoreVertical,
+  History,
+  Search,
+  Clock,
+  Star,
+  Trash2,
+  Upload,
+  AlertTriangle
+} from 'lucide-react';
 import './App.css';
 
 const QUOTA_BYTES = 5 * 1024 * 1024 * 1024;
@@ -15,8 +36,10 @@ const categories = {
 };
 
 const navItems = [
-  { id: 'home', label: 'Library', icon: 'grid' },
+  { id: 'home', label: 'Library', icon: 'LayoutDashboard' },
   { id: 'folders', label: 'Folders', icon: 'folder' },
+  { id: 'recent', label: 'Recent', icon: 'clock' },
+  { id: 'starred', label: 'Starred', icon: 'star' },
   { id: 'trash', label: 'Trash', icon: 'trash' },
 ];
 
@@ -38,6 +61,7 @@ function App() {
   const [dnaFile, setDnaFile] = useState(null);
   const [menuOpenForFolder, setMenuOpenForFolder] = useState(null);
   const [addFilesModalFolder, setAddFilesModalFolder] = useState(null);
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
 
   useEffect(() => {
     fetchStoredFiles();
@@ -64,9 +88,17 @@ function App() {
     const inCurrentFolder = file.folderId === currentFolderId || (!file.folderId && !currentFolderId);
 
     if (activeTab === 'trash') return matchesSearch && trashed;
+    if (activeTab === 'starred') return matchesSearch && !trashed && file.isStarred;
+    if (activeTab === 'recent') return matchesSearch && !trashed;
     if (activeTab === 'folders') return matchesSearch && !trashed && inCurrentFolder;
     return matchesSearch && !trashed;
   });
+
+  if (activeTab === 'recent') {
+    filteredFiles.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
+
+  const displayFolders = activeTab === 'starred' ? folders.filter(f => f.isStarred) : folders;
 
   const selectedFileStillVisible = selectedFile && filteredFiles.some((file) => file.id === selectedFile.id);
 
@@ -253,6 +285,37 @@ function App() {
     }
   };
 
+  const handleToggleFileStar = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await axios.patch(`/api/v1/files/${id}/star`);
+      fetchStoredFiles();
+    } catch (err) {
+      console.error('Toggle file star failed', err);
+    }
+  };
+
+  const handleToggleFolderStar = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await axios.patch(`/api/v1/files/folders/${id}/star`);
+      fetchFolders(currentFolderId);
+    } catch (err) {
+      console.error('Toggle folder star failed', err);
+    }
+  };
+
+  const handleUpdateFolderColor = async (e, id, color) => {
+    e.stopPropagation();
+    try {
+      await axios.patch(`/api/v1/files/folders/${id}/color?color=${encodeURIComponent(color)}`);
+      fetchFolders(currentFolderId);
+      setMenuOpenForFolder(null);
+    } catch (err) {
+      console.error('Update folder color failed', err);
+    }
+  };
+
   const handleRenameFolder = async (folder) => {
     const newName = window.prompt('Enter new folder name:', folder.name);
     if (!newName || newName === folder.name) return;
@@ -289,10 +352,10 @@ function App() {
   };
 
   return (
-    <main className="app-shell">
+    <main className="app-shell montserrat-regular">
       <section className="topbar">
         <div className="brand-cluster">
-          <button className="round-control" type="button" aria-label="Menu">
+          <button className="round-control" type="button" aria-label="Menu" onClick={() => setSidebarExpanded(!sidebarExpanded)}>
             <Icon name="menu" />
           </button>
           <div className="orbitron-regular select-none pl-6">BITSTORE</div>
@@ -300,8 +363,8 @@ function App() {
 
         <div className="topbar-actions">
           <button className="primary-button cta-button" type="button" aria-label="Add files" onClick={() => document.querySelector('.drop-zone input').click()}>
-            <Icon name="plus" />
-            <span>Add objects</span>
+            <Icon name="Archive" />
+            <span>Projects</span>
           </button>
           <div className="user-chip" aria-label="Storage health">
             <span className="avatar">HK</span>
@@ -322,12 +385,8 @@ function App() {
         </div>
       </section>
 
-      <section className="workspace-grid">
+      <section className={`workspace-grid ${sidebarExpanded ? 'is-expanded' : ''}`}>
         <aside className="sidebar-panel">
-          <div className="sidebar-top">
-            <p className="eyebrow">Workspace</p>
-            <h1>Your storage, de-duplicated.</h1>
-          </div>
 
           <nav className="nav-stack" aria-label="Primary navigation">
             {navItems.map((item) => (
@@ -392,7 +451,7 @@ function App() {
                     onClick={handleCreateFolder}
                     type="button"
                   >
-                    <Icon name="plus" /> New Folder
+                    <Icon name="ArchiveRestore" /> New Folder
                   </button>
                 )}
                 <span className="file-count">{activeTab === 'folders' && !currentFolderId ? folders.length : filteredFiles.length} items</span>
@@ -424,7 +483,7 @@ function App() {
               </div>
             )}
 
-            {filteredFiles.length === 0 && folders.length === 0 ? (
+            {filteredFiles.length === 0 && displayFolders.length === 0 ? (
               activeTab === 'folders' && !currentFolderId ? (
                 <div className="empty-state">
                   <Icon name="folder" />
@@ -436,10 +495,10 @@ function App() {
               )
             ) : (
               <div className="file-list">
-                {activeTab === 'folders' && folders.map((folder) => (
+                {(activeTab === 'folders' || activeTab === 'starred') && displayFolders.map((folder) => (
                   <article className="file-row" key={`folder-${folder.id}`} onClick={() => openFolder(folder)} style={{ cursor: 'pointer', position: 'relative' }}>
                     <div className="file-primary">
-                      <div className="file-icon" style={{ '--accent': 'var(--muted)' }}>
+                      <div className="file-icon" style={{ '--accent': folder.color || 'var(--muted)' }}>
                         <Icon name="folder" />
                       </div>
                       <div className="file-text">
@@ -449,6 +508,16 @@ function App() {
                     </div>
                     <div className="file-actions">
                       <IconButton
+                        label={folder.isStarred ? 'Remove star' : 'Star'}
+                        icon="star"
+                        tone={folder.isStarred ? "amber" : "neutral"}
+                        filled={folder.isStarred}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleFolderStar(e, folder.id);
+                        }}
+                      />
+                      <IconButton
                         label="More options"
                         icon="more-vertical"
                         onClick={(e) => {
@@ -457,7 +526,13 @@ function App() {
                         }}
                       />
                       {menuOpenForFolder === folder.id && (
-                        <div className="context-menu" style={{ position: 'absolute', right: '40px', top: '40px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '12px', padding: '8px', zIndex: 10, boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
+                        <div className="context-menu" style={{ position: 'absolute', right: '40px', top: '40px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '12px', padding: '8px', zIndex: 10, boxShadow: '0 10px 20px rgba(0,0,0,0.1)', width: '180px' }}>
+                          <div className="color-picker" style={{ display: 'flex', gap: '4px', padding: '8px 12px', borderBottom: '1px solid var(--line)', flexWrap: 'wrap' }}>
+                            {['#e75f45', '#20a39e', '#f2a541', '#8b5cf6', '#9aa4b2', '#6e8fd7', '#8d76d6', '#dda84e'].map(c => (
+                              <button key={c} onClick={(e) => handleUpdateFolderColor(e, folder.id, c)} style={{ width: '20px', height: '20px', borderRadius: '50%', background: c, border: folder.color === c ? '2px solid var(--ink)' : '2px solid transparent', cursor: 'pointer', padding: 0 }} aria-label="Set color" type="button" />
+                            ))}
+                            <button onClick={(e) => handleUpdateFolderColor(e, folder.id, '')} style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'transparent', border: '1px solid var(--line)', cursor: 'pointer', padding: 0 }} aria-label="Clear color" type="button">✕</button>
+                          </div>
                           <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); setAddFilesModalFolder(folder); setMenuOpenForFolder(null); }}>Add files</button>
                           <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); handleRenameFolder(folder); }}>Rename</button>
                           <button style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--coral)' }} onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id); setMenuOpenForFolder(null); }}>Delete folder</button>
@@ -496,6 +571,7 @@ function App() {
                         e.stopPropagation();
                         setDnaFile(file);
                       }}
+                      onToggleStar={handleToggleFileStar}
                     />
                   );
                 })}
@@ -639,6 +715,7 @@ function FileRow({
   onRestore,
   onDelete,
   onViewDna,
+  onToggleStar,
 }) {
   const category = getCategory(file.fileName);
   const hashes = getBlockHashes(file);
@@ -687,6 +764,7 @@ function FileRow({
           </>
         ) : (
           <>
+            <IconButton label={file.isStarred ? 'Remove star' : 'Star'} icon="star" onClick={(e) => onToggleStar(e, file.id)} tone={file.isStarred ? "amber" : "neutral"} filled={file.isStarred} />
             <IconButton label="Rename" icon="edit" onClick={onStartRename} />
             <IconButton label="Move to trash" icon="trash" tone="danger" onClick={(e) => onTrash(e, file.id)} />
           </>
@@ -698,7 +776,7 @@ function FileRow({
 
 function UploadPanel({ dragActive, files, uploading, progress, status, onDrag, onDrop, onChange, onClear, onUpload }) {
   return (
-    <section className="upload-panel">
+    <section className="upload-panel montserrat-regular">
       <form
         className={`drop-zone ${dragActive ? 'is-active' : ''}`}
         onDragEnter={onDrag}
@@ -801,41 +879,40 @@ function EmptyState({ activeTab, hasFiles }) {
   );
 }
 
-function IconButton({ label, icon, tone = 'neutral', onClick }) {
+function IconButton({ label, icon, tone = 'neutral', onClick, filled = false }) {
   return (
     <button className={`icon-button ${tone}`} onClick={onClick} type="button" title={label} aria-label={label}>
-      <Icon name={icon} />
+      <Icon name={icon} filled={filled} />
     </button>
   );
 }
 
-function Icon({ name }) {
-  const icons = {
-    archive: 'M4 7h16M6 7v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7M9 11h6',
-    back: 'M19 12H5m7 7-7-7 7-7',
-    download: 'M12 3v11m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2',
-    edit: 'M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4ZM13.5 6.5l4 4',
-    eye: 'M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
-    file: 'M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7l-5-5ZM14 2v5h5',
-    folder: 'M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z',
-    grid: 'M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z',
-    image: 'M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14H4V5Zm3 10 3.5-4 3 3.5 2-2.5L20 17M8 8h.01',
-    menu: 'M5 8h14M5 16h14',
-    media: 'M8 5v14l11-7L8 5Z',
-    'more-vertical': 'M12 12m-1 0a1 1 0 1 0 2 0 1 1 0 1 0-2 0M12 5m-1 0a1 1 0 1 0 2 0 1 1 0 1 0-2 0M12 19m-1 0a1 1 0 1 0 2 0 1 1 0 1 0-2 0',
-    plus: 'M12 5v14M5 12h14',
-    restore: 'M4 12a8 8 0 1 0 2.3-5.6M4 4v5h5',
-    search: 'M10.5 18a7.5 7.5 0 1 1 5.3-2.2L21 21',
-    trash: 'M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13h10l1-13M10 11v5M14 11v5',
-    upload: 'M12 21V9m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M12 3v6',
-    warning: 'M12 9v4m0 4h.01M10.3 4.2 2.6 18a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0Z',
+function Icon({ name, filled }) {
+  const iconMap = {
+    archive: Archive,
+    back: ArrowLeft,
+    download: Download,
+    edit: Pencil,
+    eye: Eye,
+    file: File,
+    folder: Folder,
+    LayoutDashboard: LayoutDashboard,
+    image: ImageIcon,
+    menu: Menu,
+    media: Film,
+    'more-vertical': MoreVertical,
+    Archive: Archive,
+    restore: History,
+    search: Search,
+    clock: Clock,
+    star: Star,
+    trash: Trash2,
+    upload: Upload,
+    warning: AlertTriangle,
   };
 
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d={icons[name] || icons.file} />
-    </svg>
-  );
+  const IconComponent = iconMap[name] || File;
+  return <IconComponent size={20} strokeWidth={2} fill={filled ? "currentColor" : "none"} aria-hidden="true" />;
 }
 
 function getBlockHashes(file) {
@@ -860,7 +937,7 @@ function getIconForCategory(category) {
   if (category === 'Images') return 'image';
   if (category === 'Media') return 'media';
   if (category === 'Archives') return 'archive';
-  if (category === 'Apps') return 'grid';
+  if (category === 'Apps') return 'LayoutDashboard';
   return 'file';
 }
 
